@@ -308,6 +308,9 @@ video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
         <button class="ctrl-btn ctrl-mic" id="micBtn" onclick="toggleMic()">
           🎙 Start Speaking
         </button>
+        <button class="ctrl-btn ctrl-tts" id="ttsBtn" onclick="readQuestion()">
+          🔊 Read Question
+        </button>
         <button class="ctrl-btn ctrl-clear" onclick="clearAnswer()">
           🗑 Clear
         </button>
@@ -434,6 +437,7 @@ let camStream   = null;
 let ttsAudio    = null;
 let ttsPlaying  = false;
 let autoReadTimeout = null;
+let isAnalyzing = false;
 
 // ── Init ──────────────────────────────────────────────────────
 async function init() {
@@ -758,9 +762,26 @@ function createSpeechRecognition() {
       try { recognizer.stop(); } catch (e) {}
       recognition = null;
       isRecording = false;
-        updateTranscriptStatus('Using recorder fallback', 'fallback');
+      updateTranscriptStatus('Using recorder fallback', 'fallback');
+    }
+  };
 
   return recognizer;
+}
+
+function startRawRecorder(stream) {
+  try {
+    const recorder = new MediaRecorder(stream);
+    const chunks = [];
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    return {
+      stream,
+      stop: () => new Promise(resolve => {
+        recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType }));
+        recorder.stop();
+      })
+    };
+  } catch (e) { return null; }
 }
 
 async function startMic() {
@@ -1052,7 +1073,10 @@ async function startCamera() {
     retryBtn.disabled = false;
 
     if (proctorInt) clearInterval(proctorInt);
-    proctorInt = setInterval(checkCameraHealth, 5000);
+    proctorInt = setInterval(() => {
+      checkCameraHealth();
+      analyzeFrame();
+    }, 5000);
   } catch (err) {
     retryBtn.disabled = false;
     addProctorLog('Camera access denied: ' + err.message, 'alert');
@@ -1094,20 +1118,32 @@ async function checkCameraHealth() {
 }
 
 async function analyzeFrame() {
+  if (isAnalyzing) return;
   const video  = document.getElementById('camFeed');
+  if (!video || video.paused || video.ended || video.readyState < 2) return;
+
   const canvas = document.getElementById('snapCanvas');
   const ctx    = canvas.getContext('2d');
-  ctx.save(); ctx.scale(-1,1); ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height); ctx.restore();
-
-  const frameB64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-  const q        = questions[currentIdx]?.question || '';
-  const ans      = document.getElementById('answerBox').value;
-
+  
   try {
+    isAnalyzing = true;
+    ctx.save(); 
+    ctx.scale(-1,1); 
+    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height); 
+    ctx.restore();
+
+    const frameB64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+    const q        = questions[currentIdx]?.question || '';
+    const ans      = document.getElementById('answerBox').value;
+
     const res = await window.examAPI.analyzeFrame({ frameBase64:frameB64, question:q, answerSoFar:ans });
-    if (res.success) applyProctorAnalysis(res.analysis);
+    if (res && res.success && res.data) {
+      applyProctorAnalysis(res.data);
+    }
   } catch (e) {
     // silent
+  } finally {
+    isAnalyzing = false;
   }
 }
 
@@ -1125,23 +1161,30 @@ function applyProctorAnalysis(a) {
   document.getElementById('statAlrt').className   = 'cam-stat-pill ' + (a.proctorAlert?'csp-red':'csp-green');
 
   // Log
-  if (a.proctorAlert) addProctorLog(`⚠️ ALERT: ${a.alertReason}`, 'alert');
-  else if (!a.eyesFocused) addProctorLog('Student appears distracted.', 'warn');
-  else if (a.expression && a.expression !== 'neutral') addProctorLog(`Expression: ${a.expression} · Attention: ${a.attention}`, 'info');
-  else addProctorLog(`✓ Normal — ${a.expression||'neutral'} · ${a.attention||'high'} attention`, 'ok');
+  if (a.proctorAlert) {
+    addProctorLog(`⚠️ ALERT: ${a.alertReason || 'Suspicious behavior detected'}`, 'alert');
+  } else if (!a.eyesFocused) {
+    addProctorLog('Observation: Student appears distracted or looking away.', 'warn');
+  } else {
+    // Only log periodic "OK" to avoid cluttering, or log expressions
+    if (Math.random() > 0.7) {
+      addProctorLog(`Proctoring: ${a.expression || 'neutral'} expression detected.`, 'info');
+    }
+  }
 
-  // Store in log
+  // Store in log for final submission
   proctorLog.push({ timestamp: new Date().toISOString(), ...a });
 }
 
 function addProctorLog(msg, type='info') {
   const log = document.getElementById('proctorLog');
-  const d   = document.createElement('div');
-  d.className = 'log-entry log-'+type;
+  if (!log) return;
+  
+  const d = document.createElement('div');
+  d.className = 'log-entry log-' + type;
   d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
   log.appendChild(d);
   log.scrollTop = log.scrollHeight;
-  proctorLog.push({ time: new Date().toISOString(), message: msg, type });
 }
 
 // ── Timer ─────────────────────────────────────────────────────

@@ -78,5 +78,6 @@ contextBridge.exposeInMainWorld('examAPI', {
   analyzeFrame:      (payload) => ipcRenderer.invoke('analyze-frame', payload),
   ttsSpeak:          (payload) => ipcRenderer.invoke('tts-speak', payload),
   transcribeAudio:   (payload) => ipcRenderer.invoke('transcribe-audio', payload),
+  checkExamSubmission: (studentId, examId) => ipcRenderer.invoke('check-exam-submission', studentId, examId),
   exitApp:           () => ipcRenderer.invoke('exit-app'),
 });

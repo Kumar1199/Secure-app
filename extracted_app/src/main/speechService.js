@@ -5,119 +5,135 @@ const path = require('path');
 const config = require('../../config/config');
 
 const TMP_DIR = path.join(__dirname, '..', '..', config.VOICE_TMP_DIR || 'tmp');
-if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
+if (!fs.existsSync(TMP_DIR)) {
+  try {
+    fs.mkdirSync(TMP_DIR, { recursive: true });
+  } catch (err) {
+    console.error('SPEECH SERVICE: Failed to create temp directory:', err.message);
+  }
+}
 
 let whisperPipeline = null;
+let isWhisperInitializing = false;
+
 async function initWhisper() {
   if (whisperPipeline) return whisperPipeline;
+  if (isWhisperInitializing) {
+    while (isWhisperInitializing) {
+      await new Promise(r => setTimeout(r, 100));
+      if (whisperPipeline) return whisperPipeline;
+    }
+  }
 
-  let transformers;
+  isWhisperInitializing = true;
+  console.log('SPEECH SERVICE: Initializing Whisper pipeline...');
+  
   try {
-    transformers = await import('@xenova/transformers');
+    let transformers;
+    try {
+      transformers = await import('@xenova/transformers');
+    } catch (err) {
+      throw new Error(`Unable to load @xenova/transformers. Ensure it is installed. (${err.message})`);
+    }
+
+    const { pipeline } = transformers;
+    if (typeof pipeline !== 'function') {
+      throw new Error('The @xenova/transformers package did not export a pipeline function.');
+    }
+
+    const model = config.WHISPER_MODEL || 'Xenova/whisper-tiny.en';
+    whisperPipeline = await pipeline('automatic-speech-recognition', model);
+    console.log(`SPEECH SERVICE: Whisper pipeline (${model}) ready.`);
+    return whisperPipeline;
   } catch (err) {
-    throw new Error(`Unable to load @xenova/transformers: ${err.message}`);
+    console.error('SPEECH SERVICE: Whisper initialization failed:', err.message);
+    throw err;
+  } finally {
+    isWhisperInitializing = false;
   }
-
-  const { pipeline } = transformers;
-  if (typeof pipeline !== 'function') {
-    throw new Error('The @xenova/transformers package did not export a pipeline function.');
-  }
-
-  whisperPipeline = await pipeline('automatic-speech-recognition', config.WHISPER_MODEL || 'Xenova/whisper-tiny.en');
-  return whisperPipeline;
 }
 
 function textToSpeech_espeak(text, lang = config.TTS_LANGUAGE || 'en') {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const out = path.join(TMP_DIR, `tts_${Date.now()}.wav`);
+    console.log(`SPEECH SERVICE: Starting TTS for text: "${text.substring(0, 30)}..."`);
+
     const args = ['-v', lang, '-w', out, text];
     const proc = spawn('espeak-ng', args, { shell: false });
 
-    proc.on('error', (err) => reject(err));
+    proc.on('error', (err) => {
+      console.error('SPEECH SERVICE: TTS spawn error (is espeak-ng installed?):', err.message);
+      resolve({ 
+        success: false, 
+        message: 'Local TTS engine (espeak-ng) is not available on this system. Falling back to browser TTS.' 
+      });
+    });
+
     proc.on('close', (code) => {
       if (code !== 0) {
-        return reject(new Error('espeak-ng failed with code=' + code));
+        console.warn(`SPEECH SERVICE: espeak-ng exited with code ${code}`);
+        return resolve({ success: false, message: `espeak-ng failed with code ${code}` });
       }
+
       try {
+        if (!fs.existsSync(out)) {
+          throw new Error('TTS output file was not created.');
+        }
         const buffer = fs.readFileSync(out);
         const base64 = buffer.toString('base64');
-        fs.unlinkSync(out);
+        
+        // Clean up
+        try { fs.unlinkSync(out); } catch (e) {}
+        
+        console.log('SPEECH SERVICE: TTS generation successful.');
         resolve({ success: true, base64 });
       } catch (err) {
-        reject(err);
+        console.error('SPEECH SERVICE: TTS post-processing error:', err.message);
+        resolve({ success: false, message: 'TTS processing failed: ' + err.message });
       }
     });
   });
 }
 
 async function speechToText_whisper(base64, mimeType = 'audio/webm') {
-  // Determine file extension based on mimeType
   let ext = '.webm';
   if (mimeType.includes('wav')) ext = '.wav';
   else if (mimeType.includes('ogg')) ext = '.ogg';
   else if (mimeType.includes('mp3')) ext = '.mp3';
-  else if (mimeType.includes('mpeg')) ext = '.mp3';
 
   const filePath = path.join(TMP_DIR, `stt_${Date.now()}${ext}`);
+  console.log(`SPEECH SERVICE: Starting STT processing (mime: ${mimeType})`);
 
   try {
-    // Decode base64 and write to file
     const buffer = Buffer.from(base64, 'base64');
-    
-    // Validate buffer is not empty
     if (!buffer || buffer.length === 0) {
       return { success: false, message: 'Received empty audio data' };
     }
 
     fs.writeFileSync(filePath, buffer);
 
-    // Verify file was written
-    if (!fs.existsSync(filePath)) {
-      return { success: false, message: 'Failed to write audio file to disk' };
-    }
-
-    // Initialize and use Whisper
     const whisper = await initWhisper();
+    console.log('SPEECH SERVICE: Running transcription...');
     
-    // Call transcription with error handling
-    let result;
-    try {
-      result = await whisper(filePath);
-    } catch (transcribeErr) {
-      // If Whisper fails, try to provide detailed error info
-      console.error('Whisper transcription error:', transcribeErr);
-      return { 
-        success: false, 
-        message: `Transcription failed: ${transcribeErr.message || 'Unknown error in Whisper pipeline'}` 
-      };
+    const result = await whisper(filePath);
+    const text = (typeof result === 'object' && result.text) ? result.text : String(result || '');
+
+    if (!text.trim()) {
+      return { success: false, message: 'No speech detected in audio' };
     }
 
-    // Process result
-    if (result && typeof result === 'object' && result.text) {
-      return { success: true, text: result.text.trim() };
-    }
-
-    const resultText = String(result || '').trim();
-    if (!resultText) {
-      return { success: false, message: 'Whisper returned empty transcription' };
-    }
-
-    return { success: true, text: resultText };
+    console.log(`SPEECH SERVICE: Transcription complete: "${text.trim().substring(0, 50)}..."`);
+    return { success: true, text: text.trim() };
   } catch (err) {
-    console.error('speechToText_whisper error:', err);
+    console.error('SPEECH SERVICE: STT error:', err.message);
     return { 
       success: false, 
-      message: err.message || 'Speech-to-text transcription failed' 
+      message: 'Transcription failed: ' + (err.message || 'Unknown error')
     };
   } finally {
-    // Clean up temp file
     try { 
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    } catch (e) {
-      console.warn('Failed to delete temp audio file:', e.message);
-    }
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch (e) {}
   }
 }
 

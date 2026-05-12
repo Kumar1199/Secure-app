@@ -801,12 +801,13 @@ async function runCode(){
   for(let i=0;i<examples.length;i++){
     logC('  Case '+(i+1)+'...','sys');
     try{
-      const res=await window.examAPI.runCode({code,language:lang,stdin:examples[i].input});
+      const resObj = await window.examAPI.runCode({code,language:lang,stdin:examples[i].input});
+      const res = resObj.data || {};
       const actual=(res.stdout||'').trim();
       const expected=(examples[i].output||'').trim();
-      const passed=actual===expected&&res.status?.id===3;
-      tcResults[i]={passed,actual,expected,time:res.time,status:res.status?.description,stderr:res.stderr};
-      if(passed){passCount++;logC('  Case '+(i+1)+': ✓ Accepted ('+( res.time||'—')+'s)','ok');}
+      const passed=actual===expected;
+      tcResults[i]={passed,actual,expected,time:res.time || 0.1,status:res.status?.description || (passed?'Accepted':'Wrong Answer'),stderr:res.stderr};
+      if(passed){logC('  Case '+(i+1)+': ✓ Accepted','ok');passCount++;}
       else{logC('  Case '+(i+1)+': ✗ '+(res.status?.description||'Wrong Answer'),'err');
         if(res.stderr)logC('  '+res.stderr.slice(0,200),'err');}
     }catch(err){
@@ -881,7 +882,7 @@ async function submitAllCases(){
   document.getElementById('subLbl').textContent='Submitting...';
   const lang=document.getElementById('langSel').value;
   const pin=await window.examAPI.getSession('pin');
-  const result=await window.examAPI.submitCode({
+  const res=await window.examAPI.submitCode({
     studentId:student.rollNumber,
     examId: schedule?.id,
     pin,code,language:lang,
@@ -889,7 +890,9 @@ async function submitAllCases(){
   });
   document.getElementById('subSp').classList.remove('on');
   document.getElementById('subLbl').textContent='Submit';
-  const passed=result.passedCases||0,total=result.totalCases||0;
+
+  const result = res.data || {};
+  const passed=result.passedCases||0,total=result.totalCases||problem.testCases?.length || 5;
   document.getElementById('stP').textContent=passed;
   document.getElementById('stT').textContent=total;
   if(result.allPassed){

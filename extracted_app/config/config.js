@@ -3,7 +3,7 @@
 module.exports = {
   // ─── Gemini API ───────────────────────────────────────────────
   GEMINI_API_KEY: "AIzaSyDoEVAtWmBv2Hq6RJNa5WejuMVZHJcjfzQ",
-  GEMINI_MODEL: "gemini-2.5-flash-lite",
+  GEMINI_MODEL: "gemini-2.5-flash",
 
   // ─── Firebase Web Config (paste from your Firebase console) ──
   FIREBASE: {
@@ -37,12 +37,12 @@ module.exports = {
 
   // ─── Power Automate HTTP Endpoints (optional) ───────────────
   POWERAUTOMATE: {
-    VALIDATE_PIN:     "YOUR_POWER_AUTOMATE_VALIDATE_PIN_URL",
-    FETCH_EXAM:       "YOUR_POWER_AUTOMATE_FETCH_EXAM_URL",
-    SUBMIT_MCQ:       "YOUR_POWER_AUTOMATE_SUBMIT_MCQ_URL",
-    SUBMIT_CODE:      "YOUR_POWER_AUTOMATE_SUBMIT_CODE_URL",
+    VALIDATE_PIN: "YOUR_POWER_AUTOMATE_VALIDATE_PIN_URL",
+    FETCH_EXAM: "YOUR_POWER_AUTOMATE_FETCH_EXAM_URL",
+    SUBMIT_MCQ: "YOUR_POWER_AUTOMATE_SUBMIT_MCQ_URL",
+    SUBMIT_CODE: "YOUR_POWER_AUTOMATE_SUBMIT_CODE_URL",
     SUBMIT_INTERVIEW: "YOUR_POWER_AUTOMATE_SUBMIT_INTERVIEW_URL",
-    EXAM_SCHEDULE:    "YOUR_POWER_AUTOMATE_EXAM_SCHEDULE_URL"
+    EXAM_SCHEDULE: "YOUR_POWER_AUTOMATE_EXAM_SCHEDULE_URL"
   },
 
   // ─── Caching and collections ─────────────────────────────────
@@ -57,9 +57,9 @@ module.exports = {
 
   // ─── Language IDs (used for Judge0 compatibility) ─────────────
   LANGUAGE_IDS: {
-    c:      50,
-    cpp:    54,
-    java:   62,
+    c: 50,
+    cpp: 54,
+    java: 62,
     python: 71
   }
 };

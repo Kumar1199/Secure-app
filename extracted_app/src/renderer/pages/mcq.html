@@ -244,6 +244,7 @@ let currentIdx  = 0;
 let examEndTime = null;
 let timerInterval = null;
 let student     = null;
+let schedule    = null;
 
 // ── Theme ─────────────────────────────────────────────────────
 let isDark = localStorage.getItem('theme') !== 'light';
@@ -280,7 +281,7 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 async function init() {
   applyTheme();
   student = await window.examAPI.getSession('student');
-  const schedule = await window.examAPI.getSession('schedule');
+  schedule = await window.examAPI.getSession('schedule');
   const qData    = await window.examAPI.getSession('questions');
 
   if (!student) { window.examAPI.navigate('pin'); return; }
@@ -457,15 +458,17 @@ async function doSubmit() {
   const pin     = await window.examAPI.getSession('pin');
   const timeTaken = Math.round((Date.now() - (examEndTime.getTime() - 3600000)) / 1000);
 
-  await window.examAPI.submitMCQ({
+  const res = await window.examAPI.submitMCQ({
     studentId: student.rollNumber,
     examId: schedule?.id,
     pin, answers, questions,
     timeTaken
   });
 
-  await window.examAPI.endExam();
-  await window.examAPI.navigate('completed');
+  if (res && res.success) {
+    await window.examAPI.endExam();
+    await window.examAPI.navigate('completed');
+  }
 }
 
 async function autoSubmit() {
