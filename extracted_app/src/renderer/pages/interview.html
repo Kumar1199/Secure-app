@@ -295,9 +295,6 @@ video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
         <button class="ctrl-btn ctrl-mic" id="micBtn" onclick="toggleMic()">
           🎙 Start Speaking
         </button>
-        <button class="ctrl-btn ctrl-tts" id="ttsBtn" onclick="readQuestion()">
-          🔊 Read Question
-        </button>
         <button class="ctrl-btn ctrl-clear" onclick="clearAnswer()">
           🗑 Clear
         </button>
@@ -418,6 +415,7 @@ let proctorLog  = [];
 let camStream   = null;
 let ttsAudio    = null;
 let ttsPlaying  = false;
+let autoReadTimeout = null;
 
 // ── Init ──────────────────────────────────────────────────────
 async function init() {
@@ -501,6 +499,21 @@ function renderQuestion(idx) {
   if (isRecording) stopMic();
   // Stop TTS
   stopTTS();
+
+  // Clear any pending auto-read timeout
+  if (autoReadTimeout) {
+    clearTimeout(autoReadTimeout);
+    autoReadTimeout = null;
+  }
+
+  // Schedule auto-read after 5 seconds
+  if (ttsSupported) {
+    autoReadTimeout = setTimeout(() => {
+      autoReadQuestion();
+      autoReadTimeout = null;
+    }, 5000);
+    addProctorLog('Question will be read aloud in 5 seconds...', 'info');
+  }
 }
 
 function updateDots() {
@@ -750,18 +763,47 @@ async function stopMic() {
 }
 
 async function processAudioBlob(blob, stream) {
-  const base64 = await blobToBase64(blob);
-  const res = await window.examAPI.transcribeAudio({ base64, mimeType: blob.type });
-  if (res && res.success && res.text) {
-    const box = document.getElementById('answerBox');
-    box.value += (box.value ? ' ' : '') + res.text.trim();
-    answers[currentIdx] = box.value;
-    addProctorLog('Transcription received.', 'ok');
-  } else {
-    addProctorLog('Transcription failed: ' + (res?.message || 'unknown error'), 'warn');
+  // Ensure we have valid audio data
+  if (!blob || blob.size === 0) {
+    addProctorLog('Transcription failed: No audio data recorded', 'warn');
+    setMicInactive();
+    if (stream && stream.getTracks) stream.getTracks().forEach(t => t.stop());
+    return;
   }
-  if (stream && stream.getTracks) stream.getTracks().forEach(t => t.stop());
-  setMicInactive();
+
+  try {
+    const base64 = await blobToBase64(blob);
+    
+    // Ensure base64 is valid
+    if (!base64 || base64.length === 0) {
+      addProctorLog('Transcription failed: Could not encode audio data', 'warn');
+      setMicInactive();
+      if (stream && stream.getTracks) stream.getTracks().forEach(t => t.stop());
+      return;
+    }
+
+    addProctorLog('Processing audio recording...', 'info');
+    const res = await window.examAPI.transcribeAudio({ base64, mimeType: blob.type });
+    
+    if (res && res.success && res.text) {
+      const box = document.getElementById('answerBox');
+      const transcribedText = res.text.trim();
+      if (transcribedText) {
+        box.value += (box.value ? ' ' : '') + transcribedText;
+        answers[currentIdx] = box.value;
+        addProctorLog('✓ Transcription received: "' + transcribedText.substring(0, 50) + (transcribedText.length > 50 ? '..."' : '"'), 'ok');
+      } else {
+        addProctorLog('Transcription returned empty text', 'warn');
+      }
+    } else {
+      addProctorLog('Transcription failed: ' + (res?.message || 'unknown error'), 'warn');
+    }
+  } catch (err) {
+    addProctorLog('Transcription error: ' + err.message, 'warn');
+  } finally {
+    if (stream && stream.getTracks) stream.getTracks().forEach(t => t.stop());
+    setMicInactive();
+  }
 }
 
 function blobToBase64(blob) {
@@ -786,27 +828,35 @@ async function readQuestion() {
   stopTTS();
   const questionText = questions[currentIdx]?.question || '';
   const btn = document.getElementById('ttsBtn');
-  btn.classList.add('playing');
-  btn.textContent = '🔊 Generating Audio...';
+  if (btn) {
+    btn.classList.add('playing');
+    btn.textContent = '🔊 Generating Audio...';
+  }
 
   const res = await window.examAPI.ttsSpeak({ text: questionText, lang: 'en' });
   if (!res || !res.success || !res.base64) {
     addProctorLog('TTS failed: ' + (res?.message || 'unknown error'), 'warn');
-    btn.classList.remove('playing');
-    btn.textContent = '🔊 Read Question';
+    if (btn) {
+      btn.classList.remove('playing');
+      btn.textContent = '🔊 Read Question';
+    }
     return;
   }
 
   const audio = ttsAudio;
   audio.src = `data:audio/wav;base64,${res.base64}`;
   audio.onended = () => {
-    btn.classList.remove('playing');
-    btn.textContent = '🔊 Read Question';
+    if (btn) {
+      btn.classList.remove('playing');
+      btn.textContent = '🔊 Read Question';
+    }
     ttsPlaying = false;
   };
   audio.onerror = () => {
-    btn.classList.remove('playing');
-    btn.textContent = '🔊 Read Question';
+    if (btn) {
+      btn.classList.remove('playing');
+      btn.textContent = '🔊 Read Question';
+    }
     addProctorLog('TTS playback failed.', 'warn');
     ttsPlaying = false;
   };
@@ -814,8 +864,36 @@ async function readQuestion() {
   ttsPlaying = true;
   audio.play().catch(err => {
     addProctorLog('TTS playback error: ' + err.message, 'warn');
-    btn.classList.remove('playing');
-    btn.textContent = '🔊 Read Question';
+    if (btn) {
+      btn.classList.remove('playing');
+      btn.textContent = '🔊 Read Question';
+    }
+    ttsPlaying = false;
+  });
+}
+
+async function autoReadQuestion() {
+  if (!ttsSupported) return;
+
+  const questionText = questions[currentIdx]?.question || '';
+  addProctorLog('Reading question aloud...', 'info');
+
+  const res = await window.examAPI.ttsSpeak({ text: questionText, lang: 'en' });
+  if (!res || !res.success || !res.base64) {
+    addProctorLog('TTS generation failed: ' + (res?.message || 'unknown error'), 'warn');
+    return;
+  }
+
+  const audio = ttsAudio;
+  audio.src = `data:audio/wav;base64,${res.base64}`;
+  audio.onerror = () => {
+    addProctorLog('TTS auto-read playback failed.', 'warn');
+    ttsPlaying = false;
+  };
+
+  ttsPlaying = true;
+  audio.play().catch(err => {
+    addProctorLog('TTS auto-read error: ' + err.message, 'warn');
     ttsPlaying = false;
   });
 }
