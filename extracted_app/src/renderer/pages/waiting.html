@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+<title>SecureExam – Preparing</title>
+<link rel="stylesheet" href="../styles/global.css"/>
+<style>
+.wait-card { width: 520px; text-align: center; }
+
+.big-spinner {
+  width: 80px; height: 80px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-right-color: var(--accent2);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 32px;
+}
+
+.steps { list-style: none; text-align: left; margin: 28px 0; }
+.step {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text2);
+  transition: color 0.3s;
+}
+.step:last-child { border-bottom: none; }
+.step.done  { color: var(--success); }
+.step.active { color: var(--text); }
+.step-icon { font-size: 18px; width: 24px; text-align: center; }
+.step-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.start-countdown-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  margin: 20px 0;
+  display: none;
+}
+.start-countdown-box.show { display: block; }
+.sc-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); margin-bottom: 8px; }
+.sc-time { font-size: 42px; font-weight: 800; font-family: var(--mono); color: var(--accent); letter-spacing: 4px; }
+.sc-time.soon { color: var(--warning); }
+
+.ready-anim {
+  display: none;
+  flex-direction: column; align-items: center; gap: 16px;
+}
+.ready-anim.show { display: flex; }
+.ready-icon { font-size: 64px; animation: popIn 0.5s ease; }
+@keyframes popIn {
+  0% { transform: scale(0.5); opacity:0; }
+  70% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity:1; }
+}
+
+.theme-toggle {
+  position:fixed; top:20px; right:24px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:100px; padding:8px 16px;
+  display:flex; align-items:center; gap:8px;
+  cursor:pointer; font-size:13px; color:var(--text2);
+  font-family:var(--font); transition:all 0.2s;
+}
+.theme-toggle:hover { border-color:var(--accent); color:var(--text); }
+.toggle-track { width:36px; height:20px; background:var(--border); border-radius:100px; position:relative; transition:background 0.3s; }
+.toggle-track.on { background:var(--accent); }
+.toggle-thumb { position:absolute; top:2px; left:2px; width:16px; height:16px; background:#fff; border-radius:50%; transition:transform 0.3s; box-shadow:0 1px 4px rgba(0,0,0,0.3); }
+.toggle-track.on .toggle-thumb { transform:translateX(16px); }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()">
+  <span id="themeIcon">☀️</span>
+  <div class="toggle-track" id="track"><div class="toggle-thumb"></div></div>
+  <span id="themeLabel">Light</span>
+</button>
+
+<div class="page">
+  <div class="card wait-card fade-in">
+    <div id="mainView">
+      <div class="big-spinner" id="mainSpinner"></div>
+      <h2 id="mainTitle">Preparing Your Exam</h2>
+      <p id="mainSubtitle">Please wait while we set up everything securely...</p>
+
+      <ul class="steps" id="stepsList">
+        <li class="step active" id="step1">
+          <span class="step-spinner" id="s1"></span>
+          <span>Connecting to exam server</span>
+        </li>
+        <li class="step" id="step2">
+          <span class="step-icon" id="s2">⏳</span>
+          <span>Verifying exam eligibility</span>
+        </li>
+        <li class="step" id="step3">
+          <span class="step-icon" id="s3">⏳</span>
+          <span>Generating questions with AI</span>
+        </li>
+        <li class="step" id="step4">
+          <span class="step-icon" id="s4">⏳</span>
+          <span>Setting up secure environment</span>
+        </li>
+      </ul>
+
+      <div class="start-countdown-box" id="waitBox">
+        <div class="sc-label">⏰ Exam begins in</div>
+        <div class="sc-time" id="scTimer">--:--:--</div>
+      </div>
+    </div>
+
+    <div class="ready-anim" id="readyView">
+      <div class="ready-icon">✅</div>
+      <h2>All Set!</h2>
+      <p>Your exam is ready. Lockdown mode is about to activate.</p>
+      <div style="margin-top:16px;width:100%">
+        <button class="btn btn-primary" id="startNowBtn" onclick="activateLockdown()">
+          🔒 Start Exam Now
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let isDark = localStorage.getItem('theme') !== 'light';
+function toggleTheme() {
+  isDark = !isDark;
+  applyTheme();
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+function applyTheme() {
+  const r = document.documentElement;
+  if (!isDark) {
+    r.style.setProperty('--bg','#f0f2f8'); r.style.setProperty('--surface','#ffffff');
+    r.style.setProperty('--surface2','#f5f7ff'); r.style.setProperty('--border','#dde1f0');
+    r.style.setProperty('--text','#1a1e2e'); r.style.setProperty('--text2','#5a6080');
+  } else {
+    r.style.setProperty('--bg','#0a0c12'); r.style.setProperty('--surface','#111520');
+    r.style.setProperty('--surface2','#181e2e'); r.style.setProperty('--border','#232a3e');
+    r.style.setProperty('--text','#e8eaf6'); r.style.setProperty('--text2','#8892b0');
+  }
+  document.getElementById('track').className = 'toggle-track' + (!isDark ? ' on' : '');
+  document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
+  document.getElementById('themeLabel').textContent = isDark ? 'Light' : 'Dark';
+}
+
+function setStep(idx, state) {
+  const el = document.getElementById('step'+idx);
+  const ic = document.getElementById('s'+idx);
+  el.className = 'step ' + state;
+  if (state === 'done')   { ic.className='step-icon'; ic.textContent='✅'; }
+  if (state === 'active') { ic.className='step-spinner'; ic.textContent=''; }
+  if (state === '')       { ic.className='step-icon'; ic.textContent='⏳'; }
+}
+
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+let examStartTime = null;
+let countdownInterval = null;
+let questionsReady = false;
+
+async function init() {
+  applyTheme();
+  await sleep(800);
+
+  const student  = await window.examAPI.getSession('student');
+  const schedule = await window.examAPI.getSession('schedule');
+
+  if (!student) { window.examAPI.navigate('pin'); return; }
+
+  // Check if student has already submitted this exam
+  if (schedule && schedule.id) {
+    const submission = await window.examAPI.checkExamSubmission(student.rollNumber, schedule.id);
+    if (submission && submission.alreadySubmitted) {
+      document.getElementById('mainTitle').textContent = 'Exam Already Completed';
+      document.getElementById('mainSubtitle').textContent = 'You have already submitted this exam and cannot take it again.';
+      document.getElementById('mainSpinner').style.display = 'none';
+      document.getElementById('waitBox').classList.remove('show');
+      return;
+    }
+  }
+
+  if (schedule && schedule.endTime) {
+    const examEndTime = new Date(schedule.endTime);
+    if (!Number.isNaN(examEndTime.getTime()) && examEndTime.getTime() < Date.now()) {
+      document.getElementById('mainTitle').textContent = 'Exam Expired';
+      document.getElementById('mainSubtitle').textContent = 'This exam has already finished and cannot be started.';
+      document.getElementById('mainSpinner').style.display = 'none';
+      document.getElementById('waitBox').classList.remove('show');
+      return;
+    }
+  }
+
+  // Step 1: connect
+  setStep(1,'done'); setStep(2,'active');
+  await sleep(700);
+
+  // Step 2: verify
+  setStep(2,'done'); setStep(3,'active');
+  document.getElementById('mainTitle').textContent = 'Generating Questions...';
+  document.getElementById('mainSubtitle').textContent = 'AI is crafting your exam questions...';
+
+  // Step 3: generate questions
+  const examData = {
+    examType:      student.examType,
+    difficulty:    student.difficulty,
+    subject:       student.subject,
+    questionCount: student.questionCount || 10,
+    description:   student.description || '',
+    studentId:     student.rollNumber,
+    studentName:   student.name
+  };
+
+  let questions = null;
+  try {
+    questions = await window.examAPI.fetchQuestions(examData);
+  } catch(e) { questions = null; }
+
+  // If Gemini API fails (no key), use mock questions so exam still works
+  if (!questions || !questions.success) {
+    const type = (examData.examType || 'MCQ').toUpperCase();
+    if (type === 'MCQ') {
+      questions = { success: true, type: 'MCQ', questions: [
+        {id:1,question:'Which data structure uses LIFO order?',options:['Queue','Stack','Linked List','Tree'],correct:1},
+        {id:2,question:'What is the time complexity of binary search?',options:['O(n)','O(n²)','O(log n)','O(1)'],correct:2},
+        {id:3,question:'Which sorting algorithm has best average O(n log n)?',options:['Bubble Sort','Selection Sort','Merge Sort','Insertion Sort'],correct:2},
+        {id:4,question:'What does RAM stand for?',options:['Random Access Memory','Read Access Module','Runtime App Memory','Register Array Memory'],correct:0},
+        {id:5,question:'Which traversal visits root first in BST?',options:['Inorder','Postorder','Preorder','Level order'],correct:2},
+        {id:6,question:'Worst case complexity of Quick Sort?',options:['O(n log n)','O(n)','O(n²)','O(log n)'],correct:2},
+        {id:7,question:'A queue follows which principle?',options:['LIFO','FIFO','LILO','FILO'],correct:1},
+        {id:8,question:'Which is NOT a linear data structure?',options:['Array','Linked List','Queue','Tree'],correct:3},
+        {id:9,question:"Dijkstra's algorithm is used for?",options:['Sorting','Shortest path','Spanning tree','String matching'],correct:1},
+        {id:10,question:'Big O notation describes?',options:['Exact runtime','Best case','Upper bound','Memory usage'],correct:2}
+      ]};
+    } else if (type === 'CODING') {
+      questions = { success: true, type: 'CODING', problem: {
+        title:'Two Sum',
+        description:'Given an array of integers `nums` and an integer `target`, return *indices of the two numbers* such that they add up to `target`.\n\nYou may assume that each input would have **exactly one solution**, and you may not use the *same* element twice.',
+        inputFormat:'First line: space-separated array\nSecond line: target',
+        outputFormat:'Two space-separated indices',
+        constraints:'2 <= nums.length <= 10^4\n-10^9 <= nums[i] <= 10^9\nOnly one valid answer exists.',
+        examples:[
+          {input:'nums = [2,7,11,15]\ntarget = 9',output:'[0,1]',explanation:'nums[0] + nums[1] == 9'},
+          {input:'nums = [3,2,4]\ntarget = 6',output:'[1,2]',explanation:''},
+          {input:'nums = [3,3]\ntarget = 6',output:'[0,1]',explanation:''}
+        ],
+        testCases:[
+          {input:'2 7 11 15\n9',expectedOutput:'0 1'},
+          {input:'3 2 4\n6',expectedOutput:'1 2'},
+          {input:'3 3\n6',expectedOutput:'0 1'},
+          {input:'1 2 3 4\n7',expectedOutput:'2 3'},
+          {input:'0 4 3 0\n0',expectedOutput:'0 3'}
+        ],
+        suggestedLanguages:['c','cpp','java','python']
+      }};
+    } else {
+      questions = { success: true, type: 'INTERVIEW', questions: [
+        {id:1,question:'Tell me about yourself and your technical background.',expectedKeyPoints:['education','projects','skills'],followUp:'What is your strongest skill?'},
+        {id:2,question:'Explain the difference between a stack and a queue.',expectedKeyPoints:['LIFO','FIFO','use cases'],followUp:'Give a real-world example of each.'},
+        {id:3,question:'What is object-oriented programming?',expectedKeyPoints:['encapsulation','inheritance','polymorphism'],followUp:'What is polymorphism?'},
+        {id:4,question:'How do you handle a bug you cannot reproduce?',expectedKeyPoints:['logging','debugging','systematic approach'],followUp:''},
+        {id:5,question:'Where do you see yourself in 5 years?',expectedKeyPoints:['growth','learning','goals'],followUp:''}
+      ]};
+    }
+  }
+  await window.examAPI.setSession('questions', questions);
+
+  setStep(3,'done'); setStep(4,'active');
+  document.getElementById('mainTitle').textContent = 'Securing Environment...';
+
+  await sleep(600);
+  setStep(4,'done');
+  questionsReady = true;
+
+  // Check if exam is scheduled in future
+  if (schedule) {
+    const now = Date.now();
+    if (schedule.startTime) {
+      examStartTime = new Date(schedule.startTime);
+      if (!Number.isNaN(examStartTime.getTime()) && examStartTime.getTime() > now + 5000) {
+        // Wait for start time
+        document.getElementById('waitBox').classList.add('show');
+        document.getElementById('mainTitle').textContent = 'Waiting for Exam to Start';
+        document.getElementById('mainSubtitle').textContent = 'Questions are ready. Exam will begin at scheduled time.';
+        document.getElementById('mainSpinner').style.display = 'none';
+        startWaitCountdown();
+        return;
+      }
+    }
+
+    if (schedule.endTime) {
+      const examEndTime = new Date(schedule.endTime);
+      if (!Number.isNaN(examEndTime.getTime()) && examEndTime.getTime() <= now) {
+        document.getElementById('mainTitle').textContent = 'Exam Expired';
+        document.getElementById('mainSubtitle').textContent = 'This exam has already finished and cannot be started.';
+        document.getElementById('mainSpinner').style.display = 'none';
+        document.getElementById('waitBox').classList.remove('show');
+        return;
+      }
+    }
+  }
+
+  showReady();
+}
+
+function startWaitCountdown() {
+  tick();
+  countdownInterval = setInterval(tick, 1000);
+}
+
+function tick() {
+  const now = Date.now();
+  const diff = examStartTime.getTime() - now;
+
+  if (diff <= 0) {
+    clearInterval(countdownInterval);
+    showReady();
+    return;
+  }
+
+  const h = Math.floor(diff/3600000);
+  const m = Math.floor((diff%3600000)/60000);
+  const s = Math.floor((diff%60000)/1000);
+  document.getElementById('scTimer').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+
+  if (diff < 60000) document.getElementById('scTimer').className = 'sc-time soon';
+}
+
+function pad(n) { return String(n).padStart(2,'0'); }
+
+function showReady() {
+  document.getElementById('mainView').style.display = 'none';
+  document.getElementById('readyView').classList.add('show');
+}
+
+async function activateLockdown() {
+  document.getElementById('startNowBtn').disabled = true;
+  document.getElementById('startNowBtn').textContent = 'Activating lockdown...';
+
+  await window.examAPI.startExam();
+  await sleep(400);
+
+  const student = await window.examAPI.getSession('student');
+  const type = (student?.examType || 'MCQ').toUpperCase();
+
+  // Refresh schedule with accurate start time NOW so timer works correctly
+  const duration = (student && student.duration) ? student.duration : 3600;
+  const freshSchedule = {
+    startTime: new Date().toISOString(),
+    endTime: new Date(Date.now() + duration * 1000).toISOString(),
+    duration: duration
+  };
+  await window.examAPI.setSession('schedule', freshSchedule);
+
+  if (type === 'MCQ')            await window.examAPI.navigate('mcq');
+  else if (type === 'CODING')    await window.examAPI.navigate('coding');
+  else if (type === 'INTERVIEW') await window.examAPI.navigate('interview');
+  else await window.examAPI.navigate('mcq');
+}
+
+init();
+</script>
+</body>
+</html>

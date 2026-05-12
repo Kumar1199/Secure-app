@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+<title>SecureExam – Login</title>
+<link rel="stylesheet" href="../styles/global.css"/>
+<style>
+.pin-inputs {
+  display: flex; gap: 12px; justify-content: center;
+  margin: 28px 0;
+}
+.pin-box {
+  width: 58px; height: 68px;
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 28px; font-weight: 700;
+  color: var(--text);
+  outline: none;
+  caret-color: var(--accent);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.pin-box:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,142,247,0.2);
+  transform: scale(1.05);
+}
+.pin-box.filled { border-color: var(--accent2); }
+.pin-box.error  { border-color: var(--danger); animation: shake 0.4s ease; }
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%,60% { transform: translateX(-6px); }
+  40%,80% { transform: translateX(6px); }
+}
+
+.security-note {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(79,142,247,0.06);
+  border: 1px solid rgba(79,142,247,0.15);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-top: 20px;
+  font-size: 12px; color: var(--text2);
+}
+.security-note span { font-size: 16px; }
+
+.theme-toggle {
+  position: fixed; top: 20px; right: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 8px 16px;
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; font-size: 13px;
+  color: var(--text2);
+  font-family: var(--font);
+  transition: all 0.2s;
+}
+.theme-toggle:hover { border-color: var(--accent); color: var(--text); }
+.toggle-track {
+  width: 36px; height: 20px;
+  background: var(--border);
+  border-radius: 100px;
+  position: relative;
+  transition: background 0.3s;
+}
+.toggle-track.on { background: var(--accent); }
+.toggle-thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.3s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.toggle-track.on .toggle-thumb { transform: translateX(16px); }
+
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(10,12,18,0.85);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 20px;
+  z-index: 999;
+}
+.loading-overlay.show { display: flex; }
+.loading-ring {
+  width: 56px; height: 56px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.loading-text { font-size: 14px; color: var(--text2); }
+</style>
+</head>
+<body>
+
+<!-- Theme Toggle -->
+<button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+  <span id="themeIcon">☀️</span>
+  <div class="toggle-track" id="track"><div class="toggle-thumb"></div></div>
+  <span id="themeLabel">Light</span>
+</button>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-ring"></div>
+  <div class="loading-text" id="loadingText">Validating PIN...</div>
+</div>
+
+<div class="page">
+  <div class="card fade-in" style="width:min(520px,100%);max-width:520px">
+    <div class="logo">
+      <div class="logo-icon">🛡️</div>
+      <div>
+        <div class="logo-text">SecureExam</div>
+        <div class="logo-sub">Proctored Examination System</div>
+      </div>
+    </div>
+
+    <h1>Enter Your PIN</h1>
+    <p style="margin-bottom:4px">Enter the 6-digit PIN provided by your faculty to begin.</p>
+
+    <div class="pin-inputs" id="pinInputs">
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="p0" autocomplete="off"/>
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="p1" autocomplete="off"/>
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="p2" autocomplete="off"/>
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="p3" autocomplete="off"/>
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="p4" autocomplete="off"/>
+      <input class="pin-box" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="p5" autocomplete="off"/>
+    </div>
+
+    <button class="btn btn-primary" id="submitBtn" onclick="submitPin()" disabled>
+      <div class="spinner" id="spin"></div>
+      <span id="btnText">Verify PIN</span>
+    </button>
+
+    <div class="error-msg" id="errMsg">❌ <span id="errText">Invalid PIN. Please try again.</span></div>
+
+    <div class="security-note">
+      <span>🔒</span>
+      This is a secure exam environment. All activity is monitored and recorded.
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Theme ──────────────────────────────────────────────────────
+let isDark = true;
+function toggleTheme() {
+  isDark = !isDark;
+  applyTheme();
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+function applyTheme() {
+  const root = document.documentElement;
+  if (!isDark) {
+    root.style.setProperty('--bg',       '#f0f2f8');
+    root.style.setProperty('--surface',  '#ffffff');
+    root.style.setProperty('--surface2', '#f5f7ff');
+    root.style.setProperty('--border',   '#dde1f0');
+    root.style.setProperty('--text',     '#1a1e2e');
+    root.style.setProperty('--text2',    '#5a6080');
+  } else {
+    root.style.setProperty('--bg',       '#0a0c12');
+    root.style.setProperty('--surface',  '#111520');
+    root.style.setProperty('--surface2', '#181e2e');
+    root.style.setProperty('--border',   '#232a3e');
+    root.style.setProperty('--text',     '#e8eaf6');
+    root.style.setProperty('--text2',    '#8892b0');
+  }
+  document.getElementById('track').className = 'toggle-track' + (isDark ? '' : ' on');
+  document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
+  document.getElementById('themeLabel').textContent = isDark ? 'Light' : 'Dark';
+}
+
+// ── PIN Inputs ────────────────────────────────────────────────
+const boxes = Array.from({length:6}, (_,i) => document.getElementById('p'+i));
+
+boxes.forEach((box, idx) => {
+  box.addEventListener('input', e => {
+    const val = e.target.value.replace(/\D/g,'');
+    box.value = val;
+    if (val) {
+      box.classList.add('filled');
+      box.classList.remove('error');
+      if (idx < 5) boxes[idx+1].focus();
+    } else {
+      box.classList.remove('filled');
+    }
+    checkComplete();
+  });
+
+  box.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !box.value && idx > 0) {
+      boxes[idx-1].focus();
+      boxes[idx-1].value = '';
+      boxes[idx-1].classList.remove('filled');
+      checkComplete();
+    }
+    if (e.key === 'Enter') submitPin();
+    // Block paste
+    if (e.ctrlKey || e.metaKey) e.preventDefault();
+  });
+
+  box.addEventListener('paste', e => e.preventDefault());
+  box.addEventListener('contextmenu', e => e.preventDefault());
+});
+
+// Allow only number keys + backspace
+document.addEventListener('keydown', e => {
+  const allowed = ['Backspace','Tab','ArrowLeft','ArrowRight'];
+  if (!allowed.includes(e.key) && !/^[0-9]$/.test(e.key)) {
+    if (document.activeElement.classList.contains('pin-box')) e.preventDefault();
+  }
+});
+
+function checkComplete() {
+  const full = boxes.every(b => b.value.length === 1);
+  document.getElementById('submitBtn').disabled = !full;
+}
+
+function getPin() { return boxes.map(b => b.value).join(''); }
+
+function showError(msg) {
+  document.getElementById('errText').textContent = msg;
+  document.getElementById('errMsg').classList.add('show');
+  boxes.forEach(b => b.classList.add('error'));
+  setTimeout(() => boxes.forEach(b => b.classList.remove('error')), 500);
+  boxes.forEach(b => { b.value=''; b.classList.remove('filled'); });
+  boxes[0].focus();
+  document.getElementById('submitBtn').disabled = true;
+}
+
+async function submitPin() {
+  const pin = getPin();
+  if (pin.length !== 6) return;
+
+  document.getElementById('loadingOverlay').classList.add('show');
+  document.getElementById('loadingText').textContent = 'Validating PIN...';
+  document.getElementById('submitBtn').disabled = true;
+
+  try {
+    const result = await window.examAPI.validatePin(pin);
+
+    if (result.success) {
+      document.getElementById('loadingText').textContent = 'Fetching exam details...';
+      await window.examAPI.setSession('student', result.student);
+      await window.examAPI.setSession('pin', pin);
+
+      const schedule = result.schedule || await window.examAPI.fetchExamSchedule(pin);
+      await window.examAPI.setSession('schedule', schedule);
+
+      document.getElementById('loadingText').textContent = 'Redirecting...';
+      await new Promise(r => setTimeout(r, 600));
+      await window.examAPI.navigate('confirmation');
+    } else {
+      document.getElementById('loadingOverlay').classList.remove('show');
+      showError(result.message || 'Invalid PIN. Please try again.');
+    }
+  } catch (err) {
+    document.getElementById('loadingOverlay').classList.remove('show');
+    showError('Connection error. Please check your network.');
+  }
+}
+
+// Init
+boxes[0].focus();
+isDark = localStorage.getItem('theme') !== 'light';
+applyTheme();
+</script>
+</body>
+</html>

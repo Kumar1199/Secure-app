@@ -1,0 +1,71 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules
+node_modules/
+**/node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+logs/
+*.log
+
+# Build and release artifacts
+dist/
+build/
+out/
+*.asar
+*.zip
+
+# Electron extracted contents and release bundles
+app_contents/
+SecureExam_Release/
+SecureExam_Release.zip
+
+# Local history and editor settings
+.history/
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Mac/iOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+ehthumbs.db
+Desktop.ini
+
+# Package locks (optional)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+
+# Environment files
+.env
+.env.local
+
+# Electron Forge / Builder
+release/
+
+# Electron app folders
+extracted_app/node_modules/
+extracted_app/dist/
+extracted_app/build/
+extracted_app/tmp/
+
+# Release files
+SecureExam_Release/
+SecureExam_Release.zip
+app_contents/

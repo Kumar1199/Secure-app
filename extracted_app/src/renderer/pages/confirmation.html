@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+<title>SecureExam – Confirmation</title>
+<link rel="stylesheet" href="../styles/global.css"/>
+<style>
+.confirm-card { width: min(520px,100%); max-width:520px; padding: 32px; margin: 0 auto; }
+
+.student-banner {
+  display: flex; align-items: center; gap: 14px;
+  background: linear-gradient(135deg, rgba(79,142,247,0.1), rgba(124,92,252,0.1));
+  border: 1px solid rgba(79,142,247,0.2);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin: 14px 0;
+}
+.avatar {
+  width: 56px; height: 56px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; flex-shrink: 0;
+}
+.student-name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.student-roll { font-size: 13px; color: var(--text2); font-family: var(--mono); }
+
+.info-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin: 14px 0;
+}
+.info-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.info-label { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text2); margin-bottom: 6px; }
+.info-value { font-size: 15px; font-weight: 600; }
+
+.schedule-box {
+  background: rgba(34,211,160,0.07);
+  border: 1px solid rgba(34,211,160,0.2);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin: 12px 0;
+}
+.schedule-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0;
+}
+.schedule-row + .schedule-row { border-top: 1px solid rgba(34,211,160,0.1); }
+.sched-label { font-size: 13px; color: var(--text2); }
+.sched-value { font-size: 14px; font-weight: 600; font-family: var(--mono); }
+
+.countdown-area {
+  text-align: center; padding: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin: 12px 0;
+}
+.countdown-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); margin-bottom: 8px; }
+.countdown-time { font-size: 36px; font-weight: 800; font-family: var(--mono); color: var(--accent); letter-spacing: 3px; margin: 6px 0; }
+.countdown-time.soon { color: var(--warning); }
+.countdown-time.now  { color: var(--success); }
+
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; margin-right: 6px;
+  animation: blink 1.5s ease infinite;
+}
+.status-dot.green { background: var(--success); }
+.status-dot.yellow { background: var(--warning); }
+
+@keyframes blink {
+  0%,100% { opacity:1; } 50% { opacity:0.3; }
+}
+
+.warning-note {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: rgba(247,164,53,0.07);
+  border: 1px solid rgba(247,164,53,0.2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+  font-size: 12px; color: var(--text2); line-height: 1.6;
+}
+
+.theme-toggle {
+  position: fixed; top: 20px; right: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 8px 16px;
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; font-size: 13px;
+  color: var(--text2);
+  font-family: var(--font);
+  transition: all 0.2s;
+}
+.theme-toggle:hover { border-color: var(--accent); color: var(--text); }
+.toggle-track { width:36px; height:20px; background:var(--border); border-radius:100px; position:relative; transition:background 0.3s; }
+.toggle-track.on { background:var(--accent); }
+.toggle-thumb { position:absolute; top:2px; left:2px; width:16px; height:16px; background:#fff; border-radius:50%; transition:transform 0.3s; box-shadow:0 1px 4px rgba(0,0,0,0.3); }
+.toggle-track.on .toggle-thumb { transform:translateX(16px); }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+  <span id="themeIcon">☀️</span>
+  <div class="toggle-track" id="track"><div class="toggle-thumb"></div></div>
+  <span id="themeLabel">Light</span>
+</button>
+
+<div class="page">
+  <div class="card confirm-card fade-in">
+    <div class="logo">
+      <div class="logo-icon">🛡️</div>
+      <div>
+        <div class="logo-text">SecureExam</div>
+        <div class="logo-sub">Identity Confirmed</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span class="status-dot green"></span>
+      <span style="font-size:13px;color:var(--success);font-weight:600">PIN Verified Successfully</span>
+    </div>
+    <h1 id="greetName">Hello, Student!</h1>
+    <p>Please review your exam details before proceeding.</p>
+
+    <div class="student-banner">
+      <div class="avatar">👤</div>
+      <div>
+        <div class="student-name" id="studentName">Loading...</div>
+        <div class="student-roll" id="studentRoll">Roll: —</div>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="info-label">Exam Type</div>
+        <div class="info-value" id="examType">—</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Difficulty</div>
+        <div class="info-value" id="difficulty">—</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Subject</div>
+        <div class="info-value" id="subject">—</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Duration</div>
+        <div class="info-value" id="duration">—</div>
+      </div>
+    </div>
+
+    <div class="schedule-box">
+      <div class="schedule-row">
+        <span class="sched-label">📅 Start Time</span>
+        <span class="sched-value" id="startTime">—</span>
+      </div>
+      <div class="schedule-row">
+        <span class="sched-label">🏁 End Time</span>
+        <span class="sched-value" id="endTime">—</span>
+      </div>
+    </div>
+
+    <div class="countdown-area" id="statusBox">
+      <div class="countdown-label" id="statusLabel">Status</div>
+      <div class="countdown-time" id="statusTimer">—</div>
+    </div>
+
+    <button class="btn btn-primary" id="takeExamBtn" onclick="goToWaiting()" disabled>
+      🚀 Proceed to Exam
+    </button>
+    <button class="btn btn-secondary" id="closeExamBtn" onclick="closeExam()" style="display:none;margin-top:12px;">
+      ✖ Close App
+    </button>
+
+    <div class="warning-note">
+      ⚠️ <span>Once you enter the exam, your screen will be <strong>fully locked</strong>. No shortcuts, task switching, or external apps will be accessible. Ensure your device is fully charged and connected to internet.</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Theme ──────────────────────────────────────────────────────
+let isDark = localStorage.getItem('theme') !== 'light';
+function toggleTheme() {
+  isDark = !isDark;
+  applyTheme();
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+function applyTheme() {
+  const r = document.documentElement;
+  if (!isDark) {
+    r.style.setProperty('--bg','#f0f2f8'); r.style.setProperty('--surface','#ffffff');
+    r.style.setProperty('--surface2','#f5f7ff'); r.style.setProperty('--border','#dde1f0');
+    r.style.setProperty('--text','#1a1e2e'); r.style.setProperty('--text2','#5a6080');
+  } else {
+    r.style.setProperty('--bg','#0a0c12'); r.style.setProperty('--surface','#111520');
+    r.style.setProperty('--surface2','#181e2e'); r.style.setProperty('--border','#232a3e');
+    r.style.setProperty('--text','#e8eaf6'); r.style.setProperty('--text2','#8892b0');
+  }
+  document.getElementById('track').className = 'toggle-track' + (!isDark ? ' on' : '');
+  document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
+  document.getElementById('themeLabel').textContent = isDark ? 'Light' : 'Dark';
+}
+
+// ── Load session ──────────────────────────────────────────────
+let examStartTime = null, examEndTime = null;
+let statusInterval = null;
+
+async function init() {
+  applyTheme();
+  const student  = await window.examAPI.getSession('student');
+  const schedule = await window.examAPI.getSession('schedule');
+
+  if (!student) { window.examAPI.navigate('pin'); return; }
+
+  // Check if student has already submitted this exam
+  if (schedule && schedule.id) {
+    const submission = await window.examAPI.checkExamSubmission(student.rollNumber, schedule.id);
+    if (submission && submission.alreadySubmitted) {
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:20px;font-size:24px;color:#ef4743;text-align:center;padding:20px"><div style="font-size:48px">✓</div><div>You have already completed this exam.</div><div style="font-size:14px;color:#999">Submitted on: ' + (new Date(submission.submission?.submittedAt).toLocaleString() || '—') + '</div></div>';
+      return;
+    }
+  }
+
+  document.getElementById('greetName').textContent   = `Hello, ${student.name}!`;
+  document.getElementById('studentName').textContent = student.name;
+  document.getElementById('studentRoll').textContent = `Roll: ${student.rollNumber}`;
+  document.getElementById('examType').textContent    = student.examType || '—';
+  document.getElementById('difficulty').textContent  = capitalize(student.difficulty || '—');
+  document.getElementById('subject').textContent     = student.subject || '—';
+
+  if (schedule && schedule.startTime) {
+    examStartTime = new Date(schedule.startTime);
+    examEndTime   = new Date(schedule.endTime);
+
+    if (Number.isNaN(examStartTime.getTime()) || Number.isNaN(examEndTime.getTime())) {
+      showStatus('Invalid exam schedule', 'Please contact support.');
+      document.getElementById('duration').textContent = '—';
+      document.getElementById('takeExamBtn').disabled = true;
+      return;
+    }
+
+    const durationMs = examEndTime.getTime() - examStartTime.getTime();
+    const durationMins = Math.round(durationMs / 60000);
+    document.getElementById('duration').textContent = formatDuration(durationMins);
+    document.getElementById('startTime').textContent = formatTime(examStartTime);
+    document.getElementById('endTime').textContent   = formatTime(examEndTime);
+
+    const now = Date.now();
+    const startMs = examStartTime.getTime();
+    const endMs = examEndTime.getTime();
+
+    if (endMs <= now) {
+      showExpired();
+      return;
+    }
+
+    if (startMs > now) {
+      showCountdown();
+      statusInterval = setInterval(updateCountdown, 1000);
+      updateCountdown();
+      document.getElementById('takeExamBtn').disabled = true;
+      return;
+    }
+
+    if (now >= startMs && now < endMs) {
+      showStatus('Exam is currently active. Proceed to start.', 'Ready');
+      document.getElementById('statusTimer').className = 'countdown-time now';
+      document.getElementById('takeExamBtn').disabled = false;
+      return;
+    }
+
+    showStatus('Exam schedule is invalid', 'Please contact support.');
+    document.getElementById('takeExamBtn').disabled = true;
+  } else {
+    document.getElementById('duration').textContent    = '—';
+    showStatus('Schedule data unavailable', 'Cannot start exam.');
+    document.getElementById('takeExamBtn').disabled = true;
+  }
+}
+
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+function showStatus(label, timer) {
+  document.getElementById('statusLabel').textContent = label;
+  document.getElementById('statusTimer').textContent = timer;
+  document.getElementById('statusTimer').className = 'countdown-time';
+  document.getElementById('closeExamBtn').style.display = 'none';
+}
+
+function showExpired() {
+  clearStatusInterval();
+  document.getElementById('takeExamBtn').disabled = true;
+  showStatus('Exam Expired', 'This exam session has already ended.');
+  document.getElementById('closeExamBtn').style.display = 'inline-flex';
+}
+
+function showCountdown() {
+  document.getElementById('statusLabel').textContent = 'Exam starts in';
+  document.getElementById('closeExamBtn').style.display = 'none';
+}
+
+function updateCountdown() {
+  const diff = examStartTime.getTime() - Date.now();
+  if (diff <= 0) {
+    clearStatusInterval();
+    document.getElementById('takeExamBtn').disabled = false;
+    showStatus('Exam is starting now', '00:00:00');
+    return;
+  }
+  const hours = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
+  document.getElementById('statusTimer').textContent = `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
+  if (diff < 60000) {
+    document.getElementById('statusTimer').className = 'countdown-time soon';
+  }
+}
+
+function clearStatusInterval() {
+  if (statusInterval) {
+    clearInterval(statusInterval);
+    statusInterval = null;
+  }
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function closeExam() {
+  window.examAPI.exitApp();
+}
+
+function formatTime(d) {
+  return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: true });
+}
+function formatDuration(mins) {
+  if (mins >= 60) return `${Math.floor(mins/60)}h ${mins%60}m`;
+  return `${mins} minutes`;
+}
+
+
+async function goToWaiting() {
+  document.getElementById('takeExamBtn').disabled = true;
+  document.getElementById('takeExamBtn').textContent = 'Loading...';
+  await window.examAPI.navigate('waiting');
+}
+
+init();
+</script>
+</body>
+</html>

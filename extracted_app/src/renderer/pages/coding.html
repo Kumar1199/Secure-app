@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+<title>SecureExam – Coding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#1a1a1a;--surf:#282828;--surf2:#3a3a3a;
+  --brd:#3a3a3a;--brd2:#4a4a4a;
+  --tx:#eff1f6;--tx2:#8d8d8d;--tx3:#bfc1c7;
+  --acc:#ffa116;
+  --green:#00b8a3;--green-bg:rgba(0,184,163,.15);
+  --easy:#00b8a3;--easy-bg:rgba(0,184,163,.15);
+  --med:#ffc01e;--med-bg:rgba(255,192,30,.15);
+  --hard:#ef4743;--hard-bg:rgba(239,71,67,.15);
+  --run-bg:#3a3a3a;--run-hover:#4a4a4a;
+  --sub-bg:#2cbb5d;--sub-hover:#22a34e;
+  --font:'Inter',-apple-system,sans-serif;
+  --mono:'JetBrains Mono','Fira Code',monospace;
+}
+body.light{
+  --bg:#fff;--surf:#f7f8fa;--surf2:#eff0f3;
+  --brd:#e0e0e0;--brd2:#d0d0d0;
+  --tx:#262626;--tx2:#a0a0a0;--tx3:#595959;
+  --run-bg:#eff0f3;--run-hover:#e0e0e0;
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
+  font-family:var(--font);overflow:hidden;
+  -webkit-user-select:none;user-select:none;font-size:14px;margin:0;padding:0;}
+
+/* ── TOPNAV ─────────────────────────────────────────────────── */
+.tnav{height:56px;background:var(--surf);border-bottom:1px solid var(--brd);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;flex-shrink:0;z-index:100;}
+.tnav-l,.tnav-c,.tnav-r{display:flex;align-items:center;gap:12px;}
+.logo-box{width:28px;height:28px;background:var(--acc);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.prob-nav{display:flex;align-items:center;gap:4px;
+  border:1px solid var(--brd);border-radius:8px;height:34px;padding:0 6px;background:var(--surf2);}
+.prob-nav-lbl{font-size:14px;font-weight:700;padding:0 12px;cursor:pointer;
+  display:flex;align-items:center;gap:6px;color:var(--tx);}
+.prob-nav-lbl:hover{color:var(--acc);}
+.nav-vd{width:1px;height:18px;background:var(--brd);}
+.arr-btn{background:none;border:none;color:var(--tx2);font-size:16px;cursor:pointer;
+  padding:5px 8px;border-radius:6px;transition:all .15s;}
+.arr-btn:hover{color:var(--tx);background:var(--surf);}
+.run-btn{height:40px;padding:0 18px;background:var(--run-bg);border:1.5px solid var(--accent);
+  border-radius:10px;color:var(--accent);font-family:var(--font);font-size:14px;font-weight:700;
+  cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;}
+.run-btn:hover{background:var(--run-hover);color:var(--tx);}
+.run-btn:disabled{opacity:.5;cursor:not-allowed;}
+.sub-btn{height:40px;padding:0 20px;background:var(--sub-bg);border:none;
+  border-radius:10px;color:#fff;font-family:var(--font);font-size:14px;font-weight:700;
+  cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;box-shadow:0 2px 8px rgba(44,187,93,.3);}
+.sub-btn:hover{background:var(--sub-hover);}
+.sub-btn:disabled{opacity:.5;cursor:not-allowed;}
+.timer-pill{display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:14px;font-weight:700;color:var(--tx);
+  padding:0 12px;border-radius:8px;border:1px solid var(--brd);height:36px;}
+.timer-pill.warn{color:var(--med);border-color:var(--med);}
+.timer-pill.crit{color:var(--hard);border-color:var(--hard);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+.theme-tog{display:flex;align-items:center;gap:6px;cursor:pointer;
+  padding:4px 10px;border:1px solid var(--brd);border-radius:6px;
+  font-size:12px;color:var(--tx2);background:transparent;transition:all .15s;}
+.theme-tog:hover{border-color:var(--acc);color:var(--tx);}
+.tt-track{width:28px;height:15px;background:var(--brd2);border-radius:100px;
+  position:relative;transition:background .25s;}
+.tt-track.on{background:var(--acc);}
+.tt-knob{position:absolute;top:2px;left:2px;width:11px;height:11px;
+  background:#fff;border-radius:50%;transition:transform .25s;
+  box-shadow:0 1px 3px rgba(0,0,0,.3);}
+.tt-track.on .tt-knob{transform:translateX(13px);}
+
+/* ── WORKSPACE ──────────────────────────────────────────────── */
+.ws{display:flex;height:calc(100vh - 44px);overflow:hidden;}
+
+/* ── LEFT PANEL ─────────────────────────────────────────────── */
+.lp{width:420px;min-width:250px;max-width:60%;display:flex;flex-direction:column;
+  background:var(--bg);border-right:1px solid var(--brd);
+  flex-shrink:0;overflow:hidden;}
+.ptabs{display:flex;border-bottom:1px solid var(--brd);
+  background:var(--surf);flex-shrink:0;padding:0 16px;}
+.ptab{padding:12px 14px;font-size:14px;font-weight:600;color:var(--tx2);
+  cursor:pointer;border:none;background:none;
+  border-bottom:2px solid transparent;transition:all .15s;
+  display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.ptab:hover{color:var(--tx);}
+.ptab.active{color:var(--tx);border-bottom-color:var(--acc);background:var(--surf2);border-radius:10px 10px 0 0;}
+.prob-scroll{flex:1;overflow-y:auto;padding:24px 24px 40px;background:var(--bg);}
+.prob-scroll::-webkit-scrollbar{width:6px;}
+.prob-scroll::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:4px;}
+.prob-title{font-size:26px;font-weight:800;color:var(--tx);
+  line-height:1.35;margin-bottom:16px;}
+.pmeta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+.diff-badge{padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.4px;}
+.diff-easy{background:var(--easy-bg);color:var(--easy);}
+.diff-medium{background:var(--med-bg);color:var(--med);}
+.diff-hard{background:var(--hard-bg);color:var(--hard);}
+.meta-chip{padding:5px 10px;border-radius:999px;background:var(--surf2);
+  font-size:12px;color:var(--tx2);cursor:default;display:flex;
+  align-items:center;gap:6px;}
+.meta-chip:hover{color:var(--tx);}
+.divh{height:1px;background:var(--brd);margin:18px 0;}
+.pdesc{font-size:15px;line-height:1.9;color:var(--tx3);
+  -webkit-user-select:text;user-select:text;}
+.pdesc strong{color:var(--tx);font-weight:600;}
+.ic{background:var(--surf2);border-radius:4px;padding:2px 6px;
+  font-family:var(--mono);font-size:13px;color:var(--tx);}
+.sec-label{font-size:14px;font-weight:700;color:var(--tx);margin:16px 0 8px;}
+.ex-block{background:var(--surf);border-radius:8px;padding:14px 16px;
+  margin-bottom:14px;border:1px solid var(--brd);}
+.ex-head{font-size:13px;font-weight:700;color:var(--tx);margin-bottom:10px;}
+.ex-io{font-family:var(--mono);font-size:13px;line-height:1.85;
+  color:var(--tx3);-webkit-user-select:text;user-select:text;white-space:pre-wrap;}
+.ex-io b{color:var(--tx);font-weight:600;}
+.ex-expl{margin-top:10px;font-size:13px;color:var(--tx2);line-height:1.6;}
+.clist{font-family:var(--mono);font-size:13px;line-height:2.1;
+  color:var(--tx3);padding-left:4px;-webkit-user-select:text;user-select:text;}
+.clist li{list-style:none;display:flex;align-items:flex-start;gap:8px;}
+.clist li::before{content:'•';color:var(--tx2);flex-shrink:0;margin-top:2px;}
+
+/* ── DRAG HANDLE ─────────────────────────────────────────────── */
+.hdrag{width:6px;background:transparent;cursor:col-resize;
+  flex-shrink:0;position:relative;z-index:5;}
+.hdrag::after{content:'';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:2px;height:36px;
+  background:var(--brd2);border-radius:2px;}
+.hdrag:hover::after,.hdrag.on::after{background:var(--acc);}
+
+/* ── RIGHT PANEL ─────────────────────────────────────────────── */
+.rp{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+
+/* ── EDITOR PANE ─────────────────────────────────────────────── */
+.ep{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+.etb{height:46px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;background:var(--surf);border-bottom:1px solid var(--brd);
+  flex-shrink:0;}
+.etb-l,.etb-r{display:flex;align-items:center;gap:6px;}
+.lang-box{display:flex;align-items:center;gap:6px;padding:6px 10px;
+  min-width:140px;background:var(--surf2);border:1.5px solid var(--brd);
+  border-radius:999px;cursor:pointer;}
+.lang-box select{width:100%;min-width:110px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);
+  color:var(--tx);font-family:var(--font);font-size:13px;font-weight:700;
+  cursor:pointer;outline:none;-webkit-appearance:none;padding:6px 8px;border-radius:999px;
+  transition:background 0.2s, border-color 0.2s, transform 0.2s;}
+.lang-box select:hover,.lang-box select:focus{background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.22);transform:translateY(-1px);}
+.lang-box select option{background:var(--surf);}
+.lang-box .select-arrow{font-size:11px;display:inline-flex;color:var(--tx2);}
+.lock-tag{font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:4px;}
+.etool{min-width:34px;height:34px;background:var(--surf2);border:none;
+  color:var(--tx2);font-size:14px;cursor:pointer;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.etool:hover{background:var(--brd);color:var(--tx);}
+.code-wrap{flex:1;position:relative;overflow:hidden;background:var(--bg);
+  border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.18);}
+.lnums{position:absolute;left:0;top:0;bottom:0;width:52px;
+  background:rgba(23,23,23,.95);border-right:1px solid var(--brd);
+  padding:16px 10px 16px 0;
+  font-family:var(--mono);font-size:13px;line-height:1.8;
+  color:var(--tx2);text-align:right;
+  overflow:hidden;pointer-events:none;user-select:none;z-index:1;}
+.cta{position:absolute;inset:0;padding:18px 18px 18px 70px;
+  background:transparent;color:var(--tx);
+  font-family:var(--mono);font-size:15px;line-height:1.75;
+  border:none;outline:none;resize:none;width:100%;height:100%;
+  tab-size:4;white-space:pre;overflow:auto;caret-color:var(--acc);
+  -webkit-user-select:text;user-select:text;}
+.completion-popover{position:absolute;bottom:38px;left:70px;right:16px;max-height:220px;
+  background:rgba(17,23,38,.95);border:1px solid rgba(255,255,255,.08);
+  border-radius:12px;box-shadow:0 16px 50px rgba(0,0,0,.25);overflow:auto;
+  z-index:2;font-family:var(--mono);font-size:13px;color:#f8fafc;padding:6px 0;
+  display:none;}
+.completion-popover.show{display:block;}
+.completion-item{padding:8px 14px;cursor:pointer;transition:background .15s;}
+.completion-item:hover,.completion-item.active{background:rgba(255,255,255,.08);}
+.completion-item .hint{color:rgba(226,232,240,.7);font-size:12px;margin-left:8px;}
+.cta::selection{background:rgba(255,161,22,.16);}
+.cta::-webkit-scrollbar{width:6px;height:6px;}
+.cta::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:999px;}
+.sbar{height:24px;display:flex;align-items:center;justify-content:flex-end;
+  padding:0 14px;background:var(--surf);border-top:1px solid var(--brd);
+  font-size:11px;color:var(--tx2);gap:14px;flex-shrink:0;}
+.sdot{width:6px;height:6px;border-radius:50%;background:var(--green);}
+
+/* ── VERT DRAG ───────────────────────────────────────────────── */
+.vdrag{height:5px;background:transparent;cursor:row-resize;flex-shrink:0;
+  position:relative;}
+.vdrag::after{content:'';position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);width:36px;height:2px;
+  background:var(--brd2);border-radius:2px;}
+.vdrag:hover::after{background:var(--acc);}
+
+/* ── TC PANEL ────────────────────────────────────────────────── */
+.tcp{height:272px;min-height:110px;display:flex;flex-direction:column;
+  background:var(--bg);border-top:1px solid var(--brd);flex-shrink:0;}
+.tcrow{height:40px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;background:var(--surf);border-bottom:1px solid var(--brd);flex-shrink:0;}
+.tcrow-l{display:flex;}
+.tmtab{padding:0 14px;height:40px;font-size:13px;font-weight:500;
+  color:var(--tx2);background:none;border:none;cursor:pointer;
+  border-bottom:2px solid transparent;display:flex;align-items:center;gap:5px;
+  transition:all .15s;font-family:var(--font);}
+.tmtab.active{color:var(--tx);border-bottom-color:var(--acc);}
+.tmtab:hover:not(.active){color:var(--tx);}
+.tbody{flex:1;overflow-y:auto;padding:14px 16px;display:none;}
+.tbody.show{display:block;}
+.tbody::-webkit-scrollbar{width:4px;}
+.tbody::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:3px;}
+.ctabs{display:flex;gap:8px;margin-bottom:14px;align-items:center;}
+.ctab{padding:5px 14px;border-radius:6px;font-size:13px;font-weight:500;
+  cursor:pointer;background:var(--surf2);border:1px solid transparent;
+  color:var(--tx2);transition:all .15s;font-family:var(--font);}
+.ctab:hover{color:var(--tx);}
+.ctab.active{background:var(--surf);border-color:var(--brd2);color:var(--tx);}
+.ctab.pass{border-color:var(--green);color:var(--green);background:var(--green-bg);}
+.ctab.fail{border-color:var(--hard);color:var(--hard);background:rgba(239,71,67,.1);}
+.add-btn{width:26px;height:26px;border-radius:50%;background:var(--surf2);
+  border:none;color:var(--tx2);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.add-btn:hover{background:var(--surf);color:var(--tx);}
+.tcfield{margin-bottom:12px;}
+.tclbl{font-size:12px;font-weight:500;color:var(--tx2);
+  margin-bottom:5px;font-family:var(--mono);}
+.tcinp{width:100%;background:var(--surf);border:1px solid var(--brd);
+  border-radius:6px;padding:9px 12px;font-family:var(--mono);font-size:13px;
+  color:var(--tx);outline:none;transition:border-color .15s;
+  resize:none;line-height:1.5;-webkit-user-select:text;user-select:text;}
+.tcinp:focus{border-color:var(--brd2);}
+
+/* Result tab */
+.vrow{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.vchip{display:flex;align-items:center;gap:6px;padding:6px 14px;
+  border-radius:6px;font-size:14px;font-weight:700;}
+.vchip.ac{background:var(--green-bg);color:var(--green);}
+.vchip.wa{background:rgba(239,71,67,.15);color:var(--hard);}
+.vchip.run{background:var(--surf2);color:var(--tx2);}
+.rctabs{display:flex;gap:8px;margin-bottom:12px;}
+.rfield{margin-bottom:12px;}
+.rlbl{font-size:12px;font-weight:500;color:var(--tx2);margin-bottom:5px;font-family:var(--mono);}
+.rval{background:var(--surf);border:1px solid var(--brd);border-radius:6px;
+  padding:9px 12px;font-family:var(--mono);font-size:13px;color:var(--tx);line-height:1.5;
+  white-space:pre-wrap;word-break:break-word;}
+.rval.fail{border-color:rgba(239,71,67,.4);color:var(--hard);}
+
+/* Console */
+.cline{font-family:var(--mono);font-size:13px;line-height:1.8;color:var(--tx3);}
+.cline.ok{color:var(--green);}
+.cline.err{color:var(--hard);}
+.cline.sys{color:var(--tx2);}
+
+/* Spinner */
+.sp{width:12px;height:12px;border:2px solid rgba(255,255,255,.25);
+  border-top-color:#fff;border-radius:50%;
+  animation:spin .65s linear infinite;display:none;flex-shrink:0;}
+.sp.dk{border-color:rgba(0,0,0,.12);border-top-color:var(--tx2);}
+.sp.on{display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Overlay */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);
+  backdrop-filter:blur(12px);z-index:9999;align-items:center;justify-content:center;}
+.ov.on{display:flex;}
+.ovm{background:var(--surf);border:1px solid var(--brd);border-radius:16px;
+  padding:40px 48px;text-align:center;max-width:460px;width:90%;}
+.ovm h2{font-size:22px;font-weight:700;margin-bottom:8px;}
+.ovm p{color:var(--tx2);font-size:14px;margin-bottom:20px;}
+.ov-stats{display:flex;gap:14px;justify-content:center;margin-bottom:22px;}
+.ov-stat{flex:1;max-width:120px;background:var(--surf2);
+  border:1px solid var(--brd);border-radius:10px;padding:12px;}
+.ov-stat-v{font-size:26px;font-weight:800;font-family:var(--mono);}
+.ov-stat-l{font-size:11px;color:var(--tx2);margin-top:3px;
+  text-transform:uppercase;letter-spacing:.4px;}
+.ov-fin-btn{background:var(--sub-bg);color:#fff;border:none;
+  border-radius:8px;padding:10px 32px;font-size:14px;font-weight:600;
+  cursor:pointer;font-family:var(--font);}
+.ov-fin-btn:hover{background:var(--sub-hover);}
+</style>
+</head>
+<body oncontextmenu="return false">
+
+<!-- ── TOP NAV ── -->
+<div class="tnav">
+  <div class="tnav-l">
+    <div class="logo-box">🛡</div>
+    <div class="prob-nav">
+      <span class="prob-nav-lbl">📋 Problem</span>
+      <div class="nav-vd"></div>
+      <button class="arr-btn" disabled style="opacity:0.5;cursor:not-allowed">‹</button>
+      <button class="arr-btn" disabled style="opacity:0.5;cursor:not-allowed">›</button>
+    </div>
+  </div>
+
+  <div class="tnav-c">
+    <button class="run-btn" id="runBtn" onclick="runCode()">
+      <div class="sp dk" id="runSp"></div>
+      <span>▶</span><span id="runLbl">Run</span>
+    </button>
+    <button class="sub-btn" id="subBtn" onclick="submitAllCases()">
+      <div class="sp" id="subSp"></div>
+      <span>↑</span><span id="subLbl">Submit</span>
+    </button>
+  </div>
+
+  <div class="tnav-r">
+    <div class="timer-pill" id="timerPill">
+      <span>⏱</span><span id="timerDisp">00:00:00</span>
+    </div>
+    <button class="theme-tog" onclick="toggleTheme()">
+      <span id="thIcon">☀️</span>
+      <div class="tt-track" id="ttTrack"><div class="tt-knob"></div></div>
+    </button>
+  </div>
+</div>
+
+<!-- ── WORKSPACE ── -->
+<div class="ws" id="ws">
+
+  <!-- LEFT -->
+  <div class="lp" id="lp">
+    <div class="ptabs">
+      <button class="ptab active" onclick="sPTab('desc',this)">📄 Description</button>
+    </div>
+
+    <!-- Description -->
+    <div class="prob-scroll" id="tabDesc">
+      <div class="prob-title" id="probTitle">Loading...</div>
+      <div class="pmeta">
+        <span class="diff-badge" id="diffBadge">Medium</span>
+      </div>
+      <div class="divh"></div>
+      <div class="pdesc" id="probDesc">Loading...</div>
+      <div id="probExamples"></div>
+      <div class="divh"></div>
+      <div class="sec-label">Constraints:</div>
+      <ul class="clist" id="probConstraints"></ul>
+    </div>
+  </div>
+
+  <!-- HDRAG -->
+  <div class="hdrag" id="hdrag"></div>
+
+  <!-- RIGHT -->
+  <div class="rp">
+
+    <!-- EDITOR -->
+    <div class="ep" id="ep">
+      <div class="etb">
+        <div class="etb-l">
+          <div class="lang-box">
+            <span>⌨️</span>
+            <select id="langSel" onchange="onLangChange()">
+              <option value="cpp" selected>C++</option>
+              <option value="c">C</option>
+              <option value="java">Java</option>
+              <option value="python">Python</option>
+            </select>
+            <span class="select-arrow">▾</span>
+          </div>
+          <div class="lock-tag">🔒 <span>Auto</span></div>
+        </div>
+        <div class="etb-r">
+          <button type="button" class="etool" onclick="chFont(1)" title="Increase font size">A+</button>
+          <button type="button" class="etool" onclick="chFont(-1)" title="Decrease font size">A-</button>
+          <button type="button" class="etool" onclick="resetCode()" title="Reset">↺</button>
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="lnums" id="lnums">1</div>
+        <textarea class="cta" id="cta"
+          spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"
+          oninput="onCI()" onkeydown="onCK(event)" onscroll="syncScroll()"
+        ></textarea>
+        <div class="completion-popover" id="completionBox"></div>
+    </div>
+
+    <!-- VDRAG -->
+    <div class="vdrag" id="vdrag"></div>
+
+    <!-- TC PANEL -->
+    <div class="tcp" id="tcp">
+      <div class="tcrow">
+        <div class="tcrow-l">
+          <button class="tmtab active" id="mt1" onclick="sMTab('tc')">☑ Testcase</button>
+          <button class="tmtab" id="mt2" onclick="sMTab('tr')">▷ Test Result</button>
+          <button class="tmtab" id="mt3" onclick="sMTab('con')">⌨ Console</button>
+        </div>
+      </div>
+
+      <!-- Testcase -->
+      <div class="tbody show" id="bTC">
+        <div class="ctabs" id="ctabs"></div>
+        <div id="cfields"></div>
+      </div>
+
+      <!-- Test Result -->
+      <div class="tbody" id="bTR">
+        <div class="vrow">
+          <div class="vchip run" id="vchip">⏳ Not run yet</div>
+          <span style="font-size:13px;color:var(--tx2)" id="vmeta"></span>
+        </div>
+        <div class="rctabs" id="rctabs"></div>
+        <div id="rfields"></div>
+      </div>
+
+      <!-- Console -->
+      <div class="tbody" id="bCon">
+        <div id="clines">
+          <div class="cline sys">// Output appears here after Run...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SUBMIT OVERLAY -->
+<div class="ov" id="ov">
+  <div class="ovm">
+    <div style="font-size:52px;margin-bottom:14px" id="ovIcon">✅</div>
+    <h2 id="ovTitle">Solution Submitted</h2>
+    <p id="ovMsg">Your solution has been recorded.</p>
+    <div class="ov-stats">
+      <div class="ov-stat">
+        <div class="ov-stat-v" id="stP" style="color:var(--green)">0</div>
+        <div class="ov-stat-l">Passed</div>
+      </div>
+      <div class="ov-stat">
+        <div class="ov-stat-v" id="stT" style="color:var(--tx2)">0</div>
+        <div class="ov-stat-l">Total Cases</div>
+      </div>
+    </div>
+    <button class="ov-fin-btn" onclick="finishExam()">Finish Exam</button>
+  </div>
+</div>
+
+<script>
+// ── Theme ─────────────────────────────────────────────────────
+let isDark = localStorage.getItem('lcTh') !== 'light';
+function toggleTheme(){isDark=!isDark;applyTh();localStorage.setItem('lcTh',isDark?'dark':'light');}
+function applyTh(){
+  document.body.classList.toggle('light',!isDark);
+  document.getElementById('ttTrack').className='tt-track'+(isDark?'':' on');
+  document.getElementById('thIcon').textContent=isDark?'☀️':'🌙';
+}
+
+// ── Security ──────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const target = e.target;
+  const isEditable = target && (target.matches('textarea, input, [contenteditable]') || target.isContentEditable);
+  if (isEditable) {
+    if (['F5','F12','F11','Escape'].includes(e.key)) {
+      e.preventDefault();
+      return false;
+    }
+    return;
+  }
+  if (e.key === 'Tab') return;
+  if (['F5','F12','F11','Escape'].includes(e.key)) { e.preventDefault(); return false; }
+  if (e.altKey) { e.preventDefault(); return false; }
+  if ((e.ctrlKey || e.metaKey) && !['a','z','y','c','v','x'].includes(e.key.toLowerCase())) {
+    e.preventDefault(); return false;
+  }
+}, false);
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ── State ─────────────────────────────────────────────────────
+let problem=null,student=null,schedule=null,examEnd=null,timerInt=null;
+let fontSize=13,curCase=0,tcResults=[],customCases=[];
+
+const STARTERS={
+  cpp:'#include <bits/stdc++.h>\nusing namespace std;\n\nclass Solution {\npublic:\n    \n};\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    \n    return 0;\n}',
+  c:'#include <stdio.h>\n#include <stdlib.h>\n\nint main() {\n    \n    return 0;\n}',
+  java:'import java.util.*;\nimport java.io.*;\n\npublic class Solution {\n    \n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        \n    }\n}',
+  python:'import sys\nfrom collections import defaultdict, Counter\nfrom typing import List, Optional\ninput = sys.stdin.readline\n\n# Your solution here\n'
+};
+
+const COMPLETIONS={
+  cpp:['int','long','double','float','bool','char','void','return','if','else','switch','case','default','break','continue','for','while','do','struct','class','public','private','protected','namespace','using','std','vector','string','map','set','cout','cin','endl','auto','constexpr','static','const','new','delete','this','template','typename','operator','nullptr','override'],
+  c:['int','long','double','float','char','void','return','if','else','switch','case','default','break','continue','for','while','do','struct','typedef','static','const','malloc','free','printf','scanf','sizeof','NULL'],
+  java:['public','private','protected','class','static','void','int','long','double','float','boolean','char','String','new','return','if','else','switch','case','default','break','continue','for','while','do','extends','implements','import','package','this','super','System.out.println','Arrays','List','Map','HashMap','Scanner','try','catch','finally','throws','throw'],
+  python:['def','return','if','elif','else','for','while','break','continue','class','import','from','as','try','except','finally','with','lambda','True','False','None','print','len','range','list','dict','set','tuple','str','int','float','bool','self','assert']
+};
+let completionItems=[];
+let completionIndex=-1;
+let completionPrefix='';
+
+// ── Init ──────────────────────────────────────────────────────
+async function init(){
+
+  applyTh();
+  student = await window.examAPI.getSession('student');
+  schedule = await window.examAPI.getSession('schedule');
+  const qData = await window.examAPI.getSession('questions');
+  if(!student){ window.examAPI.navigate('pin'); return; }
+  
+  // Check if exam is expired or not yet started
+  if(schedule){
+    const now = Date.now();
+    if(schedule.endTime){
+      const examEndTime = new Date(schedule.endTime);
+      if(!Number.isNaN(examEndTime.getTime()) && examEndTime.getTime() <= now){
+        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-size:32px;color:#ef4743">✗ This exam has expired and cannot be accessed.</div>';
+        return;
+      }
+    }
+    if(schedule.startTime){
+      const examStartTime = new Date(schedule.startTime);
+      if(!Number.isNaN(examStartTime.getTime()) && examStartTime.getTime() > now){
+        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-size:32px;color:#f79c35">⏰ This exam has not started yet. Please return at the scheduled time.</div>';
+        return;
+      }
+    }
+  }
+
+  if(qData && qData.problem){ problem=qData.problem; }
+  else {
+    problem={
+      title:"Two Sum",
+      description:"Given an array of integers `nums` and an integer `target`, return *indices of the two numbers* such that they add up to `target`.\n\nYou may assume that each input would have **exactly one solution**, and you may not use the *same* element twice.\n\nYou can return the answer in any order.",
+      inputFormat:"First line: array of integers\nSecond line: target integer",
+      outputFormat:"Return indices of the two numbers as an array",
+      constraints:"2 <= nums.length <= 10^4\n-10^9 <= nums[i] <= 10^9\n-10^9 <= target <= 10^9\nOnly one valid answer exists.",
+      examples:[
+        {input:"nums = [2,7,11,15]\ntarget = 9",output:"[0,1]",explanation:"Because nums[0] + nums[1] == 9, we return [0, 1]."},
+        {input:"nums = [3,2,4]\ntarget = 6",output:"[1,2]",explanation:""},
+        {input:"nums = [3,3]\ntarget = 6",output:"[0,1]",explanation:""}
+      ],
+      testCases:[
+        {input:"2 7 11 15\n9",expectedOutput:"0 1"},
+        {input:"3 2 4\n6",expectedOutput:"1 2"},
+        {input:"3 3\n6",expectedOutput:"0 1"},
+        {input:"1 2 3 4\n7",expectedOutput:"2 3"},
+        {input:"0 4 3 0\n0",expectedOutput:"0 3"}
+      ],
+      suggestedLanguages:["c","cpp","java","python"]
+    };
+  }
+
+  const duration = (student && student.duration) ? student.duration : 3600;
+  if(schedule && schedule.endTime){
+    const end = new Date(schedule.endTime);
+    examEnd = end.getTime() > Date.now() + 10000 ? end : new Date(Date.now() + duration * 1000);
+  } else {
+    examEnd = new Date(Date.now() + duration * 1000);
+  }
+
+  renderProb();buildCaseTabs();setStarter();startTimer();initDrags();
+}
+
+// ── Render problem ────────────────────────────────────────────
+function renderProb(){
+  document.getElementById('probTitle').textContent = problem.title||'Problem';
+  const d=(student?.difficulty||'medium').toLowerCase();
+  const db=document.getElementById('diffBadge');
+  db.textContent=cap(d);db.className=`diff-badge diff-${d}`;
+
+  let descHtml=fmtDesc(problem.description||'');
+  if(problem.inputFormat) descHtml+=`<br><br><strong>Input Format</strong><br>${fmtDesc(problem.inputFormat)}`;
+  if(problem.outputFormat) descHtml+=`<br><br><strong>Output Format</strong><br>${fmtDesc(problem.outputFormat)}`;
+  document.getElementById('probDesc').innerHTML=descHtml;
+
+  const exEl=document.getElementById('probExamples');
+  exEl.innerHTML=(problem.examples||[]).map((ex,i)=>`
+    <div style="margin-top:16px"><div class="sec-label">Example ${i+1}:</div></div>
+    <div class="ex-block">
+      <div class="ex-io">
+        <b>Input:</b>  ${esc(ex.input)}<br>
+        <b>Output:</b> ${esc(ex.output)}
+      </div>
+      ${ex.explanation?`<div class="ex-expl"><b>Explanation:</b> ${esc(ex.explanation)}</div>`:''}
+    </div>`).join('');
+
+  const cEl=document.getElementById('probConstraints');
+  cEl.innerHTML=(problem.constraints||'').split('\n').filter(Boolean)
+    .map(c=>`<li><code class="ic">${esc(c.trim())}</code></li>`).join('');
+}
+
+function fmtDesc(t){
+  return (t||'')
+    .replace(/`([^`]+)`/g,'<code class="ic">$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+    .replace(/\n/g,'<br>');
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function cap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
+
+// ── Problem tabs ──────────────────────────────────────────────
+const ptm={desc:'tabDesc'};
+function sPTab(n,el){
+  Object.values(ptm).forEach(id=>{const t=document.getElementById(id);if(t)t.style.display='none';});
+  document.getElementById(ptm[n]).style.display='block';
+  document.querySelectorAll('.ptab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Case tabs ─────────────────────────────────────────────────
+function buildCaseTabs(){
+  customCases=(problem.examples||[]).map((ex,i)=>({label:`Case ${i+1}`,raw:ex.input||'',output:ex.output||''}));
+  renderCaseTabs();if(customCases.length)showCase(0);
+}
+
+function renderCaseTabs(){
+  const t=document.getElementById('ctabs');
+  t.innerHTML=customCases.map((c,i)=>
+    `<button class="ctab ${i===curCase?'active':''} ${tcResults[i]?(tcResults[i].passed?'pass':'fail'):''}"
+      onclick="showCase(${i})">${c.label}</button>`
+  ).join('')+`<button class="add-btn" onclick="addCase()">+</button>`;
+}
+
+function showCase(idx){
+  curCase=idx;
+  const c=customCases[idx];if(!c)return;
+  document.querySelectorAll('.ctab').forEach((t,i)=>{
+    t.className='ctab';
+    if(tcResults[i])t.classList.add(tcResults[i].passed?'pass':'fail');
+    if(i===idx)t.classList.add('active');
+  });
+  const ex=(problem.examples||[])[idx];
+  const cf=document.getElementById('cfields');
+  if(ex){
+    const pnames=extractParams(problem.description||'');
+    const lines=(ex.input||'').split('\n');
+    let html='';
+    if(pnames.length>=lines.length&&pnames.length>0){
+      pnames.forEach((nm,i)=>{
+        html+=`<div class="tcfield"><div class="tclbl">${esc(nm)} =</div>
+          <textarea class="tcinp" rows="1" oninput="updCase(${idx},${i},this.value)">${esc(lines[i]||'')}</textarea></div>`;
+      });
+    } else {
+      html=`<div class="tcfield"><div class="tclbl">stdin</div>
+        <textarea class="tcinp" rows="3" oninput="updRaw(${idx},this.value)">${esc(ex.input||'')}</textarea></div>`;
+    }
+    cf.innerHTML=html;
+  } else {
+    cf.innerHTML=`<div class="tcfield"><div class="tclbl">stdin</div>
+      <textarea class="tcinp" rows="3" oninput="updRaw(${idx},this.value)">${esc(c.raw||'')}</textarea></div>`;
+  }
+}
+
+function extractParams(desc){
+  const m=desc.match(/`([a-zA-Z_][a-zA-Z0-9_]*)`/g)||[];
+  const seen=new Set(),res=[];
+  m.forEach(x=>{const n=x.replace(/`/g,'');if(!seen.has(n)&&n.length>1){seen.add(n);res.push(n);}});
+  return res.slice(0,5);
+}
+
+function updRaw(idx,val){if(customCases[idx])customCases[idx].raw=val;}
+function updCase(idx,li,val){
+  if(!customCases[idx])return;
+  const lines=customCases[idx].raw.split('\n');
+  lines[li]=val;customCases[idx].raw=lines.join('\n');
+}
+function addCase(){
+  customCases.push({label:`Case ${customCases.length+1}`,raw:'',output:''});
+  renderCaseTabs();showCase(customCases.length-1);
+}
+
+// ── Main tab ──────────────────────────────────────────────────
+function sMTab(tab){
+  [['TC','mt1'],['TR','mt2'],['Con','mt3']].forEach(([k,bid])=>{
+    document.getElementById('b'+k).classList.remove('show');
+    document.getElementById(bid).classList.remove('active');
+  });
+  const map={tc:['TC','mt1'],tr:['TR','mt2'],con:['Con','mt3']};
+  document.getElementById('b'+map[tab][0]).classList.add('show');
+  document.getElementById(map[tab][1]).classList.add('active');
+}
+
+// ── Code editor ───────────────────────────────────────────────
+function setStarter(){
+  const l=document.getElementById('langSel').value;
+  document.getElementById('cta').value=STARTERS[l]||'';
+  updateLN();
+}
+function onLangChange(){setStarter();}
+function resetCode(){setStarter();}
+function onCI(){updateLN();updCP();updateCompletions();}
+function onCK(e){
+  const ta=e.target;
+  if(e.key==='Escape'){ closeCompletions(); return; }
+  if(completionItems.length){
+    if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+      e.preventDefault(); completionIndex = (completionIndex + (e.key==='ArrowDown'?1:-1) + completionItems.length) % completionItems.length;
+      renderCompletionBox(); return;
+    }
+    if(e.key==='Tab' || e.key==='Enter'){
+      if(completionIndex >= 0){ e.preventDefault(); acceptCompletion(completionItems[completionIndex]); return; }
+    }
+  }
+  if(e.key==='Tab'){
+    e.preventDefault(); const s=ta.selectionStart;
+    ta.value = ta.value.slice(0,s)+'    '+ta.value.slice(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = s+4; updateLN(); return;
+  }
+  if(e.key==='Enter'){
+    e.preventDefault(); const s=ta.selectionStart;
+    const before = ta.value.slice(0,s);
+    const lineStart = before.lastIndexOf('\n') + 1;
+    const lineText = before.slice(lineStart);
+    const indentMatch = lineText.match(/^[ \t]*/);
+    let indent = indentMatch ? indentMatch[0] : '';
+    if(/\{\s*$/.test(lineText) || /:\s*$/.test(lineText)) indent += '    ';
+    ta.value = ta.value.slice(0,s) + '\n' + indent + ta.value.slice(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = s + 1 + indent.length;
+    updateLN(); setTimeout(updCP,0); return;
+  }
+  const pairs={'(':')','{':'}','[':']','"':'"',"'":"'"};
+  if(pairs[e.key]&&!e.ctrlKey&&!e.metaKey){
+    const s=ta.selectionStart, en=ta.selectionEnd;
+    if(s===en){ e.preventDefault(); const ins = e.key + pairs[e.key];
+      ta.value = ta.value.slice(0,s) + ins + ta.value.slice(en);
+      ta.selectionStart = ta.selectionEnd = s+1;
+    }
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&['a','z','y','c','v','x'].includes(e.key.toLowerCase())) return;
+  if(e.altKey){ e.preventDefault(); return false; }
+  setTimeout(() => { updCP(); updateCompletions(); }, 0);
+}
+function updateCompletions(){
+  const ta=document.getElementById('cta');
+  const cursor=ta.selectionStart;
+  const prefix = getCurrentPrefix(ta.value, cursor);
+  if(!prefix){ closeCompletions(); return; }
+  const lang = document.getElementById('langSel').value;
+  const source = [...COMPLETIONS[lang], ...collectIdentifiers(ta.value)].map(w=>w.trim()).filter(Boolean);
+  const unique = Array.from(new Set(source));
+  const suggestions = unique.filter(w=>w.toLowerCase().startsWith(prefix.toLowerCase()) && w.toLowerCase()!==prefix.toLowerCase()).slice(0,8);
+  if(!suggestions.length){ closeCompletions(); return; }
+  completionItems = suggestions;
+  completionIndex = 0;
+  completionPrefix = prefix;
+  renderCompletionBox();
+}
+function getCurrentPrefix(text, pos){
+  const m = text.slice(0,pos).match(/([A-Za-z_][A-Za-z0-9_]*)$/);
+  return m ? m[1] : '';
+}
+function collectIdentifiers(text){
+  const found = text.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/g) || [];
+  return found.filter(w=>!Object.values(COMPLETIONS).flat().includes(w)).slice(0,80);
+}
+function renderCompletionBox(){
+  const box=document.getElementById('completionBox');
+  box.innerHTML = completionItems.map((item,i)=>
+    `<div class="completion-item ${i===completionIndex?'active':''}" data-index="${i}" onclick="acceptCompletion('${esc(item)}')">${esc(item)}</div>`
+  ).join('');
+  box.classList.add('show');
+}
+function acceptCompletion(item){
+  const ta=document.getElementById('cta');
+  const cursor=ta.selectionStart;
+  const prefix = getCurrentPrefix(ta.value, cursor);
+  const start = cursor - prefix.length;
+  ta.value = ta.value.slice(0,start) + item + ta.value.slice(ta.selectionEnd);
+  const newPos = start + item.length;
+  ta.selectionStart = ta.selectionEnd = newPos;
+  closeCompletions(); updateLN(); setTimeout(updCP,0);
+}
+function closeCompletions(){
+  completionItems = [];
+  completionIndex = -1;
+  completionPrefix = '';
+  const box=document.getElementById('completionBox');
+  box.classList.remove('show');
+  box.innerHTML = '';
+}
+function updateLN(){
+  const n=document.getElementById('cta').value.split('\n').length;
+  document.getElementById('lnums').innerHTML=Array.from({length:n},(_,i)=>i+1).join('<br>');
+}
+function syncScroll(){
+  document.getElementById('lnums').scrollTop=document.getElementById('cta').scrollTop;
+}
+function updCP(){
+  const ta=document.getElementById('cta');
+  const txt=ta.value.slice(0,ta.selectionStart);
+  const lines=txt.split('\n');
+  document.getElementById('cpos').textContent=`Ln ${lines.length}, Col ${lines[lines.length-1].length+1}`;
+}
+function chFont(d){
+  fontSize=Math.max(10,Math.min(20,fontSize+d));
+  document.getElementById('cta').style.fontSize=fontSize+'px';
+  document.getElementById('lnums').style.fontSize=fontSize+'px';
+}
+
+// ── Run ───────────────────────────────────────────────────────
+async function runCode(){
+  const code=document.getElementById('cta').value.trim();if(!code)return;
+  const lang=document.getElementById('langSel').value;
+  const examples=problem.examples||[];
+  setRunLoad(true);clrConsole();
+  logC('▶ Running '+examples.length+' example(s)...','sys');
+  tcResults=[];let passCount=0;
+  for(let i=0;i<examples.length;i++){
+    logC('  Case '+(i+1)+'...','sys');
+    try{
+      const res=await window.examAPI.runCode({code,language:lang,stdin:examples[i].input});
+      const actual=(res.stdout||'').trim();
+      const expected=(examples[i].output||'').trim();
+      const passed=actual===expected&&res.status?.id===3;
+      tcResults[i]={passed,actual,expected,time:res.time,status:res.status?.description,stderr:res.stderr};
+      if(passed){passCount++;logC('  Case '+(i+1)+': ✓ Accepted ('+( res.time||'—')+'s)','ok');}
+      else{logC('  Case '+(i+1)+': ✗ '+(res.status?.description||'Wrong Answer'),'err');
+        if(res.stderr)logC('  '+res.stderr.slice(0,200),'err');}
+    }catch(err){
+      tcResults[i]={passed:false,actual:'Error',expected:'',time:'—',status:'Error'};
+      logC('  Case '+(i+1)+': Runtime Error','err');
+    }
+  }
+  logC('\n'+passCount+'/'+examples.length+' examples passed.',passCount===examples.length?'ok':'err');
+  setRunLoad(false);
+  renderCaseTabs();showCase(curCase);
+  popTR(passCount,examples.length);sMTab('tr');
+}
+
+function popTR(passed,total){
+  const vc=document.getElementById('vchip');
+  const vm=document.getElementById('vmeta');
+  if(passed===total){vc.className='vchip ac';vc.textContent='✓ Accepted';}
+  else{vc.className='vchip wa';vc.textContent='✗ Wrong Answer';}
+  vm.textContent=passed+' / '+total+' testcases passed';
+  const rct=document.getElementById('rctabs');
+  rct.innerHTML=tcResults.map((r,i)=>
+    `<button class="ctab ${r.passed?'pass':'fail'} ${i===0?'active':''}"
+      onclick="showRC(${i})" id="rcb${i}">Case ${i+1}</button>`
+  ).join('');
+  if(tcResults.length)showRC(0);
+}
+
+function showRC(idx){
+  document.querySelectorAll('#rctabs .ctab').forEach((t,i)=>{
+    t.className='ctab '+(tcResults[i]?(tcResults[i].passed?'pass':'fail'):'');
+    if(i===idx)t.classList.add('active');
+  });
+  const r=tcResults[idx];if(!r)return;
+  const ex=(problem.examples||[])[idx];
+  document.getElementById('rfields').innerHTML=`
+    <div class="rfield"><div class="rlbl">Input</div>
+      <div class="rval">${esc(ex?.input||'')}</div></div>
+    <div class="rfield"><div class="rlbl">Expected Output</div>
+      <div class="rval">${esc(r.expected)}</div></div>
+    <div class="rfield"><div class="rlbl">Your Output</div>
+      <div class="rval ${r.passed?'pass':'fail'}">${esc(r.actual||'(empty)')}</div></div>
+    ${r.stderr?`<div class="rfield"><div class="rlbl">Stderr</div>
+      <div class="rval fail" style="font-size:12px">${esc(r.stderr.slice(0,300))}</div></div>`:''}
+    <div class="rfield"><div class="rlbl">Status</div>
+      <div class="rval ${r.passed?'pass':'fail'}">${r.passed?'✓ Accepted':'✗ '+r.status} · ${r.time||'—'}s</div></div>`;
+}
+
+function setRunLoad(on){
+  document.getElementById('runBtn').disabled=on;
+  document.getElementById('runSp').classList.toggle('on',on);
+  document.getElementById('runLbl').textContent=on?'Running...':'Run';
+}
+
+// ── Submit ────────────────────────────────────────────────────
+async function submitAllCases(){
+  const code=document.getElementById('cta').value.trim();if(!code)return;
+  
+  // Check if exam is still within time window
+  if(schedule){
+    const now = Date.now();
+    if(schedule.endTime){
+      const examEndTime = new Date(schedule.endTime);
+      if(!Number.isNaN(examEndTime.getTime()) && examEndTime.getTime() <= now){
+        alert('Exam time has ended. Cannot submit.');
+        return;
+      }
+    }
+  }
+  
+  document.getElementById('subBtn').disabled=true;
+  document.getElementById('subSp').classList.add('on');
+  document.getElementById('subLbl').textContent='Submitting...';
+  const lang=document.getElementById('langSel').value;
+  const pin=await window.examAPI.getSession('pin');
+  const result=await window.examAPI.submitCode({
+    studentId:student.rollNumber,
+    examId: schedule?.id,
+    pin,code,language:lang,
+    testCases:problem.testCases||[]
+  });
+  document.getElementById('subSp').classList.remove('on');
+  document.getElementById('subLbl').textContent='Submit';
+  const passed=result.passedCases||0,total=result.totalCases||0;
+  document.getElementById('stP').textContent=passed;
+  document.getElementById('stT').textContent=total;
+  if(result.allPassed){
+    document.getElementById('ovIcon').textContent='🎉';
+    document.getElementById('ovTitle').textContent='Accepted';
+    document.getElementById('ovMsg').textContent='All test cases passed! Excellent solution.';
+    document.getElementById('stP').style.color='var(--green)';
+  } else {
+    document.getElementById('ovIcon').textContent='📊';
+    document.getElementById('ovTitle').textContent='Submitted';
+    document.getElementById('ovMsg').textContent=passed+' of '+total+' test cases passed.';
+    document.getElementById('stP').style.color=passed>0?'var(--med)':'var(--hard)';
+  }
+  document.getElementById('ov').classList.add('on');
+}
+async function finishExam(){await window.examAPI.endExam();await window.examAPI.navigate('completed');}
+
+// ── Console ───────────────────────────────────────────────────
+function clrConsole(){document.getElementById('clines').innerHTML='';}
+function logC(msg,type=''){
+  const d=document.createElement('div');
+  d.className='cline '+type;d.textContent=msg;
+  document.getElementById('clines').appendChild(d);
+  document.getElementById('clines').scrollTop=9999;
+}
+
+// ── Timer ─────────────────────────────────────────────────────
+function startTimer(){tickT();timerInt=setInterval(tickT,1000);}
+function tickT(){
+  const diff=examEnd.getTime()-Date.now();
+  if(diff<=0){clearInterval(timerInt);autoSub();return;}
+  const h=Math.floor(diff/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
+  document.getElementById('timerDisp').textContent=`${pad(h)}:${pad(m)}:${pad(s)}`;
+  const tp=document.getElementById('timerPill');
+  tp.className=diff<300000?(diff<60000?'timer-pill crit':'timer-pill warn'):'timer-pill';
+}
+function pad(n){return String(n).padStart(2,'0');}
+async function autoSub(){await window.examAPI.endExam();await window.examAPI.navigate('completed');}
+
+// ── Drags ─────────────────────────────────────────────────────
+function initDrags(){
+  const hd=document.getElementById('hdrag');
+  let ha=false,hsx=0,hsw=0;
+  hd.addEventListener('mousedown',e=>{ha=true;hsx=e.clientX;hsw=document.getElementById('lp').offsetWidth;hd.classList.add('on');document.body.style.cursor='col-resize';document.body.style.userSelect='none';});
+  document.addEventListener('mousemove',e=>{
+    if(!ha)return;
+    const ww=document.getElementById('ws').offsetWidth;
+    const nw=Math.max(300,Math.min(ww*.65,hsw+e.clientX-hsx));
+    document.getElementById('lp').style.width=nw+'px';
+  });
+  document.addEventListener('mouseup',()=>{ha=false;hd.classList.remove('on');document.body.style.cursor='';document.body.style.userSelect='';});
+
+  const vd=document.getElementById('vdrag');
+  let va=false,vsy=0,vsh=0;
+  vd.addEventListener('mousedown',e=>{va=true;vsy=e.clientY;vsh=document.getElementById('tcp').offsetHeight;document.body.style.cursor='row-resize';document.body.style.userSelect='none';});
+  document.addEventListener('mousemove',e=>{
+    if(!va)return;
+    const nh=Math.max(100,Math.min(500,vsh+(vsy-e.clientY)));
+    document.getElementById('tcp').style.height=nh+'px';
+  });
+  document.addEventListener('mouseup',()=>{va=false;document.body.style.cursor='';document.body.style.userSelect='';});
+}
+
+init();
+</script>
+</body>
+</html>

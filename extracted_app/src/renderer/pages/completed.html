@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+<title>SecureExam – Completed</title>
+<link rel="stylesheet" href="../styles/global.css"/>
+<style>
+.done-card { width:min(560px,100%); max-width:560px; text-align:center; }
+
+.checkmark {
+  width: 88px; height: 88px;
+  background: linear-gradient(135deg, var(--success), #16a87d);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 44px;
+  margin: 0 auto 28px;
+  box-shadow: 0 0 48px rgba(34,211,160,0.35);
+  animation: popIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+
+@keyframes popIn {
+  0%   { transform:scale(0); opacity:0; }
+  70%  { transform:scale(1.15); }
+  100% { transform:scale(1); opacity:1; }
+}
+
+.done-title { font-size:28px; font-weight:800; margin-bottom:8px; }
+.done-sub   { font-size:15px; color:var(--text2); line-height:1.6; margin-bottom:32px; }
+
+.info-row {
+  display:flex; gap:16px; justify-content:space-between; margin-bottom:32px; flex-wrap:wrap;
+}
+.info-box {
+  flex:1 1 0;
+  min-width:140px; max-width:170px;
+  background: var(--surface2);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:16px;
+}
+.info-val { font-size:22px; font-weight:800; font-family:var(--mono); color:var(--accent); }
+.info-lbl { font-size:11px; color:var(--text2); margin-top:4px; text-transform:uppercase; letter-spacing:0.8px; }
+
+.note-box {
+  background: rgba(79,142,247,0.06);
+  border:1px solid rgba(79,142,247,0.15);
+  border-radius:12px;
+  padding:16px 20px;
+  font-size:13px; color:var(--text2); line-height:1.7;
+  margin-bottom:24px; text-align:left;
+}
+
+.theme-toggle {
+  position:fixed; top:20px; right:24px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:100px; padding:8px 16px;
+  display:flex; align-items:center; gap:8px;
+  cursor:pointer; font-size:13px; color:var(--text2);
+  font-family:var(--font); transition:all 0.2s;
+}
+.theme-toggle:hover { border-color:var(--accent); color:var(--text); }
+.toggle-track{width:36px;height:20px;background:var(--border);border-radius:100px;position:relative;transition:background 0.3s;}
+.toggle-track.on{background:var(--accent);}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform 0.3s;box-shadow:0 1px 4px rgba(0,0,0,0.3);}
+.toggle-track.on .toggle-thumb{transform:translateX(16px);}
+
+.confetti-emoji {
+  position:fixed; pointer-events:none;
+  font-size:24px; animation:fall linear forwards;
+  z-index:0;
+}
+@keyframes fall {
+  0%   { transform:translateY(-40px) rotate(0deg); opacity:1; }
+  100% { transform:translateY(110vh) rotate(720deg); opacity:0; }
+}
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()">
+  <span id="themeIcon">☀️</span>
+  <div class="toggle-track" id="track"><div class="toggle-thumb"></div></div>
+  <span id="themeLabel">Light</span>
+</button>
+
+<div class="page">
+  <div class="card done-card fade-in" style="position:relative;z-index:1">
+    <div class="checkmark">✅</div>
+
+    <div class="done-title">Exam Submitted!</div>
+    <div class="done-sub" id="doneMsg">Your responses have been securely submitted.<br>Your score and results are now available on the student dashboard.</div>
+
+    <div class="info-row">
+      <div class="info-box">
+        <div class="info-val" id="infoType">—</div>
+        <div class="info-lbl">Exam Type</div>
+      </div>
+      <div class="info-box">
+        <div class="info-val" id="infoStudent">—</div>
+        <div class="info-lbl">Roll No.</div>
+      </div>
+      <div class="info-box">
+        <div class="info-val" id="infoTime">—</div>
+        <div class="info-lbl">Submitted At</div>
+      </div>
+    </div>
+
+    <div class="note-box">
+      📊 <strong>Check your student dashboard</strong> in the web app to view your detailed score, submission status, and faculty feedback.
+      <br><br>
+      ⚠️ The SecureExam app stays locked until you close it from this screen.
+    </div>
+
+    <button class="btn btn-ghost" onclick="closeApp()" style="margin-top:8px;min-width:260px;">
+      🚪 Close Secure Exam App
+    </button>
+  </div>
+</div>
+
+<script>
+let isDark = localStorage.getItem('theme') !== 'light';
+function toggleTheme() {
+  isDark = !isDark; applyTheme();
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+function applyTheme() {
+  const r = document.documentElement;
+  if (!isDark) {
+    r.style.setProperty('--bg','#f0f2f8'); r.style.setProperty('--surface','#ffffff');
+    r.style.setProperty('--surface2','#f5f7ff'); r.style.setProperty('--border','#dde1f0');
+    r.style.setProperty('--text','#1a1e2e'); r.style.setProperty('--text2','#5a6080');
+  } else {
+    r.style.setProperty('--bg','#0a0c12'); r.style.setProperty('--surface','#111520');
+    r.style.setProperty('--surface2','#181e2e'); r.style.setProperty('--border','#232a3e');
+    r.style.setProperty('--text','#e8eaf6'); r.style.setProperty('--text2','#8892b0');
+  }
+  document.getElementById('track').className = 'toggle-track' + (!isDark ? ' on' : '');
+  document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
+  document.getElementById('themeLabel').textContent = isDark ? 'Light' : 'Dark';
+}
+
+async function init() {
+  applyTheme();
+  const student = await window.examAPI.getSession('student');
+  if (student) {
+    document.getElementById('infoType').textContent    = student.examType || '—';
+    document.getElementById('infoStudent').textContent = student.rollNumber || '—';
+  }
+  document.getElementById('infoTime').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+  await window.examAPI.clearSession();
+  spawnConfetti();
+}
+
+function spawnConfetti() {
+  const emojis = ['🎉','⭐','✨','🎊','🌟','💫'];
+  for (let i = 0; i < 18; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'confetti-emoji';
+      el.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+      el.style.left = Math.random()*100 + 'vw';
+      el.style.animationDuration = (2+Math.random()*3) + 's';
+      el.style.animationDelay = Math.random()*1 + 's';
+      document.body.appendChild(el);
+      setTimeout(()=>el.remove(), 6000);
+    }, i*150);
+  }
+}
+
+async function closeApp() {
+  await window.examAPI.exitApp();
+}
+
+init();
+</script>
+</body>
+</html>
