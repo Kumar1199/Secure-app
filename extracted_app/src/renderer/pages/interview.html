@@ -437,6 +437,7 @@ let autoReadTimeout = null;
 
 // ── Init ──────────────────────────────────────────────────────
 async function init() {
+  addProctorLog('Init: Starting interview page initialization', 'info');
   applyTheme();
   
   // Load session data
@@ -444,22 +445,19 @@ async function init() {
   const schedule = await window.examAPI.getSession('schedule');
   const qData    = await window.examAPI.getSession('questions');
 
-  console.log('Interview Init - Student:', student);
-  console.log('Interview Init - Schedule:', schedule);
-  console.log('Interview Init - Questions Data:', qData);
+  addProctorLog(`Init: Student=${student?.rollNumber || 'unknown'}, QData type=${qData?.type || 'undefined'}`, 'info');
 
   if (!student || !qData) { 
-    console.error('Missing student or questions data');
+    addProctorLog('ERROR: Missing student or questions data in session', 'alert');
     window.examAPI.navigate('pin'); 
     return; 
   }
 
   questions = qData.questions || [];
-  console.log('Questions loaded:', questions.length, questions);
+  addProctorLog(`Loaded ${questions.length} questions from session. First Q: "${questions[0]?.question?.substring(0,50) || 'N/A'}"`, 'info');
   
   if (questions.length === 0) {
-    console.error('No questions in qData');
-    addProctorLog('ERROR: No questions available', 'alert');
+    addProctorLog('ERROR: Questions array empty after retrieval', 'alert');
   }
   
   answers   = new Array(questions.length).fill('');
@@ -470,8 +468,10 @@ async function init() {
   ttsAudio = document.getElementById('ttsAudio');
 
   // Render UI immediately (fast)
+  addProctorLog('Init: Calling buildProgDots and renderQuestion', 'info');
   buildProgDots();
   renderQuestion(0);
+  addProctorLog('Init: Question render complete', 'info');
   startTimer();
   
   // Load voice and camera async (non-blocking)
@@ -512,31 +512,43 @@ function checkNetworkStatus() {
 function capitalize(s) { return s?s.charAt(0).toUpperCase()+s.slice(1):s; }
 
 function buildProgDots() {
+  if (!questions || questions.length === 0) {
+    addProctorLog('WARNING buildProgDots: No questions yet', 'info');
+    return;
+  }
   const c = document.getElementById('progDots');
   c.innerHTML = questions.map((_,i)=>
     `<div class="prog-dot${i===0?' current':''}" id="pdot${i}"></div>`
   ).join('');
+  addProctorLog(`Built ${questions.length} progress dots`, 'info');
 }
 
 function renderQuestion(idx) {
+  addProctorLog(`renderQuestion called with idx=${idx}`, 'info');
   currentIdx = idx;
   
   if (!questions || questions.length === 0) {
-    console.error('No questions available. Questions array:', questions);
-    document.getElementById('qText').textContent = 'Error: No questions loaded';
-    addProctorLog('ERROR: Questions not loaded', 'alert');
+    addProctorLog('ERROR renderQuestion: No questions available', 'alert');
+    document.getElementById('qText').textContent = 'ERROR: No questions loaded. Contact administrator.';
     return;
   }
   
   const q = questions[idx];
   if (!q) {
-    console.error('Question at index ' + idx + ' not found', questions);
-    document.getElementById('qText').textContent = 'Error: Question not found';
+    addProctorLog(`ERROR renderQuestion: Question at index ${idx} not found. Array length: ${questions.length}`, 'alert');
+    document.getElementById('qText').textContent = `ERROR: Question ${idx} not found`;
+    return;
+  }
+  
+  if (!q.question) {
+    addProctorLog(`ERROR renderQuestion: Question object missing "question" property. Keys: ${Object.keys(q).join(',')}`, 'alert');
+    document.getElementById('qText').textContent = 'ERROR: Question text missing';
     return;
   }
   
   document.getElementById('qNumBadge').textContent = `Question ${idx+1} of ${questions.length}`;
-  document.getElementById('qText').textContent      = q.question || 'Question text not available';
+  document.getElementById('qText').textContent      = q.question;
+  addProctorLog(`renderQuestion: Set qText to "${q.question.substring(0,50)}"`, 'info');
   document.getElementById('answerBox').value         = answers[idx] || '';
 
   const fu = document.getElementById('followup');
