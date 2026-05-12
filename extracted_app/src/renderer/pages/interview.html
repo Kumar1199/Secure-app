@@ -100,6 +100,18 @@ html,body { overflow:hidden; width: 100%; height: 100%; margin: 0; padding: 0; }
 }
 .mic-dot.active { background:var(--danger); animation:pulse 1s infinite; }
 
+.transcript-status {
+  font-size:12px;
+  color:var(--text2);
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(79,142,247,0.08);
+}
+.transcript-status.active { border-color: rgba(79,142,247,0.25); color: var(--accent); }
+.transcript-status.fallback { background: rgba(247,164,53,0.08); border-color: rgba(247,164,53,0.25); color: var(--warning); }
+.transcript-status.offline { background: rgba(247,85,85,0.08); border-color: rgba(247,85,85,0.25); color: var(--danger); }
+
 .answer-textarea {
   flex:1; min-height:140px;
   background: var(--surface2);
@@ -285,6 +297,7 @@ video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
           <div class="mic-dot" id="micDot"></div>
           <span id="micLabel" style="font-size:12px;color:var(--text2);">Mic off</span>
         </div>
+        <span id="transcriptStatus" class="transcript-status">Live transcription idle</span>
       </div>
 
       <textarea class="answer-textarea" id="answerBox"
@@ -410,6 +423,11 @@ let rawRecording = null;
 let isRecording = false;
 let sttSupported = false;
 let ttsSupported = false;
+let browserTTSSupported = false;
+let browserSTTMode = false;
+let sttFallbackSupported = false;
+let recognition = null;
+let recognitionBaseText = '';
 let proctorInt  = null;
 let proctorLog  = [];
 let camStream   = null;
@@ -420,6 +438,8 @@ let autoReadTimeout = null;
 // ── Init ──────────────────────────────────────────────────────
 async function init() {
   applyTheme();
+  
+  // Load session data
   student = await window.examAPI.getSession('student');
   const schedule = await window.examAPI.getSession('schedule');
   const qData    = await window.examAPI.getSession('questions');
@@ -432,17 +452,21 @@ async function init() {
   document.getElementById('examBrand').textContent = `Interview – ${student.subject||'Exam'}`;
   document.getElementById('examSub').textContent   = `${student.rollNumber} · ${capitalize(student.difficulty)}`;
   examEnd = schedule?.endTime ? new Date(schedule.endTime) : new Date(Date.now()+3600000);
+  ttsAudio = document.getElementById('ttsAudio');
 
+  // Render UI immediately (fast)
   buildProgDots();
   renderQuestion(0);
   startTimer();
-  startCamera();
-  ttsAudio = document.getElementById('ttsAudio');
-
+  
+  // Load voice and camera async (non-blocking)
+  startCamera().catch(e => console.warn('Camera init failed:', e));
+  
+  // Initialize voice support and network checks async
   setTimeout(() => {
     initVoiceSupport();
     checkNetworkStatus();
-  }, 500);
+  }, 200);
 }
 
 // ── Network Status Check ───────────────────────────────────────
@@ -547,34 +571,51 @@ async function initVoiceSupport() {
   const micBtn = document.getElementById('micBtn');
   const ttsBtn = document.getElementById('ttsBtn');
 
-  sttSupported = Boolean(window.examAPI && typeof window.examAPI.transcribeAudio === 'function');
-  ttsSupported = Boolean(window.examAPI && typeof window.examAPI.ttsSpeak === 'function');
+  const browserSpeech = typeof window.speechSynthesis !== 'undefined' && typeof window.speechSynthesis.speak === 'function';
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  const backendTTS = Boolean(window.examAPI && typeof window.examAPI.ttsSpeak === 'function');
+  const backendSTT = Boolean(window.examAPI && typeof window.examAPI.transcribeAudio === 'function');
+
+  browserTTSSupported = browserSpeech;
+  browserSTTMode = Boolean(SpeechRecognition);
+  sttFallbackSupported = backendSTT;
+  sttSupported = backendSTT || browserSTTMode;
+  ttsSupported = backendTTS || browserTTSSupported;
 
   if (!sttSupported && !ttsSupported) {
     addProctorLog('Offline voice engine unavailable.', 'alert');
     micBtn.disabled = true;
-    ttsBtn.disabled = true;
+    if (ttsBtn) ttsBtn.disabled = true;
+    updateTranscriptStatus('Live transcription unavailable', 'offline');
     return;
   }
 
   if (sttSupported) {
-    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+    if (browserSTTMode) {
+      micBtn.disabled = false;
+      addProctorLog('Live speech recognition available.', 'ok');
+    } else if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
       addProctorLog('Microphone capture unavailable in this environment.', 'alert');
       micBtn.disabled = true;
       sttSupported = false;
     } else {
       micBtn.disabled = false;
-      addProctorLog('Speech-to-text ready.', 'ok');
+      addProctorLog('Speech-to-text fallback ready.', 'ok');
     }
   } else {
     micBtn.disabled = true;
   }
 
   if (ttsSupported) {
-    ttsBtn.disabled = false;
-    addProctorLog('Text-to-speech ready.', 'ok');
-  } else {
-    ttsBtn.disabled = true;
+    if (backendTTS) {
+      addProctorLog('Backend TTS available.', 'ok');
+    } else if (browserTTSSupported) {
+      addProctorLog('Browser TTS available.', 'ok');
+    }
+  }
+
+  if (ttsBtn) {
+    ttsBtn.disabled = !ttsSupported;
   }
 }
 
@@ -582,11 +623,27 @@ function setMicInactive() {
   isRecording = false;
   mediaRecorder = null;
   rawRecording = null;
+  recognitionBaseText = '';
+  if (recognition) {
+    try { recognition.stop(); } catch (e) {}
+    recognition = null;
+  }
   const btn = document.getElementById('micBtn');
-  btn.className = 'ctrl-btn ctrl-mic';
-  btn.innerHTML = '🎙 Start Speaking';
+  if (btn) {
+    btn.className = 'ctrl-btn ctrl-mic';
+    btn.innerHTML = '🎙 Start Speaking';
+  }
   document.getElementById('micDot').classList.remove('active');
   document.getElementById('micLabel').textContent = 'Mic off';
+  updateTranscriptStatus('Live transcription idle', '');
+}
+
+function updateTranscriptStatus(message, statusClass) {
+  const el = document.getElementById('transcriptStatus');
+  if (!el) return;
+  el.textContent = message;
+  el.className = 'transcript-status';
+  if (statusClass) el.classList.add(statusClass);
 }
 
 function toggleMic() { isRecording ? stopMic() : startMic(); }
@@ -617,87 +674,90 @@ function createMediaRecorder(stream) {
   }
 }
 
-function mergeAudioBuffers(buffers, length) {
-  const result = new Float32Array(length);
-  let offset = 0;
-  for (const buffer of buffers) {
-    result.set(buffer, offset);
-    offset += buffer.length;
-  }
-  return result;
-}
+function createSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return null;
 
-function floatTo16BitPCM(output, input) {
-  for (let i = 0; i < input.length; i++) {
-    let s = Math.max(-1, Math.min(1, input[i]));
-    output[i * 2] = s < 0 ? s * 0x8000 : s * 0x7fff;
-    output[i * 2 + 1] = (s < 0 ? s * 0x8000 : s * 0x7fff) >> 8;
-  }
-}
+  const recognizer = new SpeechRecognition();
+  recognizer.lang = 'en-US';
+  recognizer.interimResults = true;
+  recognizer.maxAlternatives = 1;
+  recognizer.continuous = true;
 
-function writeString(view, offset, string) {
-  for (let i = 0; i < string.length; i++) {
-    view.setUint8(offset + i, string.charCodeAt(i));
-  }
-}
+  recognizer.onresult = event => {
+    const box = document.getElementById('answerBox');
+    if (!box) return;
 
-function encodeWAV(samples, sampleRate) {
-  const buffer = new ArrayBuffer(44 + samples.length * 2);
-  const view = new DataView(buffer);
+    let interim = '';
+    let finalText = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) {
+        finalText += result[0].transcript;
+      } else {
+        interim += result[0].transcript;
+      }
+    }
 
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
-  writeString(view, 8, 'WAVE');
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(view, 36, 'data');
-  view.setUint32(40, samples.length * 2, true);
-
-  floatTo16BitPCM(view, samples);
-  return view;
-}
-
-function startRawRecorder(stream) {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return null;
-
-  const context = new AudioContext();
-  const source = context.createMediaStreamSource(stream);
-  const processor = context.createScriptProcessor(4096, 1, 1);
-  const buffers = [];
-
-  processor.onaudioprocess = event => {
-    const channelData = event.inputBuffer.getChannelData(0);
-    buffers.push(new Float32Array(channelData));
-  };
-
-  source.connect(processor);
-  processor.connect(context.destination);
-
-  return {
-    stream,
-    stop: async () => {
-      source.disconnect();
-      processor.disconnect();
-      try {
-        await context.close();
-      } catch (e) {}
-      const length = buffers.reduce((sum, b) => sum + b.length, 0);
-      const samples = mergeAudioBuffers(buffers, length);
-      const wavView = encodeWAV(samples, context.sampleRate);
-      return new Blob([wavView], { type: 'audio/wav' });
+    const base = recognitionBaseText || answers[currentIdx] || box.value || '';
+    const separator = base && !base.endsWith(' ') ? ' ' : '';
+    box.value = base + separator + finalText + interim;
+    if (finalText.trim()) {
+      answers[currentIdx] = box.value;
     }
   };
+
+  recognizer.onerror = event => {
+    const err = event.error || 'unknown';
+    addProctorLog('Speech recognition error: ' + err, 'warn');
+    const recoverableErrors = ['network', 'service-not-allowed', 'not-allowed', 'audio-capture', 'aborted'];
+    if (sttFallbackSupported && recoverableErrors.includes(err)) {
+      addProctorLog('Speech recognition unavailable; switching to audio recorder fallback.', 'info');
+      browserSTTMode = false;
+      try { recognizer.stop(); } catch (e) {}
+      recognition = null;
+      isRecording = false;
+        updateTranscriptStatus('Using recorder fallback', 'fallback');
+
+  return recognizer;
 }
 
 async function startMic() {
   if (!sttSupported || isRecording) return;
+
+  const btn = document.getElementById('micBtn');
+
+  if (browserSTTMode) {
+    recognition = createSpeechRecognition();
+    if (!recognition) {
+      addProctorLog('Browser speech recognition not available.', 'warn');
+      return;
+    }
+
+    recognitionBaseText = answers[currentIdx] || document.getElementById('answerBox').value || '';
+    try {
+      recognition.start();
+      isRecording = true;
+      if (btn) {
+        btn.className = 'ctrl-btn ctrl-mic recording';
+        btn.innerHTML = '⏹ Stop Speaking';
+      }
+      document.getElementById('micDot').classList.add('active');
+      document.getElementById('micLabel').textContent = '🎤 Listening...';
+      updateTranscriptStatus('Live transcription active', 'active');
+      addProctorLog('Live speech recognition started.', 'info');
+    } catch (e) {
+      addProctorLog('Recognition start failed: ' + e.message, 'warn');
+      recognition = null;
+      updateTranscriptStatus('Speech recognition unavailable, using recorder', 'fallback');
+      if (sttFallbackSupported) {
+        browserSTTMode = false;
+        addProctorLog('Falling back to audio recorder.', 'info');
+        await startMic();
+      }
+    }
+    return;
+  }
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -710,6 +770,7 @@ async function startMic() {
       if (!rawRecording) {
         throw new Error('No supported audio recording path available.');
       }
+      updateTranscriptStatus('Recording audio for transcription', 'fallback');
     }
 
     if (mediaRecorder) {
@@ -723,16 +784,16 @@ async function startMic() {
       };
 
       mediaRecorder.start();
-    } else if (rawRecording) {
-      // keep recording until stopped
+      updateTranscriptStatus('Recording audio for transcription', 'fallback');
     }
 
     isRecording = true;
+    if (btn) {
+      btn.className = 'ctrl-btn ctrl-mic recording';
+      btn.innerHTML = '⏹ Stop Speaking';
+    }
     document.getElementById('micDot').classList.add('active');
     document.getElementById('micLabel').textContent = '🎤 Recording...';
-    const btn = document.getElementById('micBtn');
-    btn.className = 'ctrl-btn ctrl-mic recording';
-    btn.innerHTML = '⏹ Stop Speaking';
     addProctorLog('Recording started.', 'info');
   } catch (e) {
     addProctorLog('Mic err: ' + e.message, 'warn');
@@ -741,6 +802,17 @@ async function startMic() {
 
 async function stopMic() {
   if (!isRecording) return;
+
+  if (recognition) {
+    try {
+      recognition.stop();
+    } catch (e) {
+      console.warn('Recognition stop error', e);
+    }
+    setMicInactive();
+    return;
+  }
+
   if (mediaRecorder) {
     try {
       mediaRecorder.stop();
@@ -821,90 +893,94 @@ function blobToBase64(blob) {
 
 async function readQuestion() {
   if (!ttsSupported) {
-    addProctorLog('Offline TTS not available.', 'warn');
+    addProctorLog('Text-to-speech unavailable.', 'warn');
     return;
   }
 
-  stopTTS();
   const questionText = questions[currentIdx]?.question || '';
-  const btn = document.getElementById('ttsBtn');
-  if (btn) {
-    btn.classList.add('playing');
-    btn.textContent = '🔊 Generating Audio...';
-  }
-
-  const res = await window.examAPI.ttsSpeak({ text: questionText, lang: 'en' });
-  if (!res || !res.success || !res.base64) {
-    addProctorLog('TTS failed: ' + (res?.message || 'unknown error'), 'warn');
-    if (btn) {
-      btn.classList.remove('playing');
-      btn.textContent = '🔊 Read Question';
-    }
-    return;
-  }
-
-  const audio = ttsAudio;
-  audio.src = `data:audio/wav;base64,${res.base64}`;
-  audio.onended = () => {
-    if (btn) {
-      btn.classList.remove('playing');
-      btn.textContent = '🔊 Read Question';
-    }
-    ttsPlaying = false;
-  };
-  audio.onerror = () => {
-    if (btn) {
-      btn.classList.remove('playing');
-      btn.textContent = '🔊 Read Question';
-    }
-    addProctorLog('TTS playback failed.', 'warn');
-    ttsPlaying = false;
-  };
-
-  ttsPlaying = true;
-  audio.play().catch(err => {
-    addProctorLog('TTS playback error: ' + err.message, 'warn');
-    if (btn) {
-      btn.classList.remove('playing');
-      btn.textContent = '🔊 Read Question';
-    }
-    ttsPlaying = false;
-  });
+  addProctorLog('Reading question aloud...', 'info');
+  await speakText(questionText);
 }
 
 async function autoReadQuestion() {
   if (!ttsSupported) return;
-
   const questionText = questions[currentIdx]?.question || '';
   addProctorLog('Reading question aloud...', 'info');
+  await speakText(questionText);
+}
 
-  const res = await window.examAPI.ttsSpeak({ text: questionText, lang: 'en' });
-  if (!res || !res.success || !res.base64) {
-    addProctorLog('TTS generation failed: ' + (res?.message || 'unknown error'), 'warn');
+async function speakText(text) {
+  stopTTS();
+
+  if (window.examAPI && typeof window.examAPI.ttsSpeak === 'function') {
+    const res = await window.examAPI.ttsSpeak({ text, lang: 'en' });
+    if (!res || !res.success || !res.base64) {
+      addProctorLog('TTS fallback failed: ' + (res?.message || 'unknown error'), 'warn');
+      if (browserTTSSupported) {
+        return speakTextWithBrowserTTS(text);
+      }
+      return;
+    }
+
+    const audio = ttsAudio;
+    if (!audio) {
+      addProctorLog('Audio element unavailable for TTS playback.', 'warn');
+      return;
+    }
+
+    audio.src = `data:audio/wav;base64,${res.base64}`;
+    audio.volume = 1;
+    audio.muted = false;
+    audio.onended = () => {
+      ttsPlaying = false;
+    };
+    audio.onerror = () => {
+      addProctorLog('TTS fallback playback failed.', 'warn');
+      ttsPlaying = false;
+    };
+
+    ttsPlaying = true;
+    await audio.play().catch(err => {
+      addProctorLog('TTS playback error: ' + err.message, 'warn');
+      ttsPlaying = false;
+    });
     return;
   }
 
-  const audio = ttsAudio;
-  audio.src = `data:audio/wav;base64,${res.base64}`;
-  audio.onerror = () => {
-    addProctorLog('TTS auto-read playback failed.', 'warn');
-    ttsPlaying = false;
-  };
+  if (browserTTSSupported) {
+    return speakTextWithBrowserTTS(text);
+  }
 
-  ttsPlaying = true;
-  audio.play().catch(err => {
-    addProctorLog('TTS auto-read error: ' + err.message, 'warn');
-    ttsPlaying = false;
+  addProctorLog('No TTS provider available.', 'warn');
+  return;
+}
+
+function speakTextWithBrowserTTS(text) {
+  return new Promise((resolve, reject) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.voice = speechSynthesis.getVoices().find(v => v.lang.startsWith('en')) || null;
+    utterance.onend = () => {
+      ttsPlaying = false;
+      resolve();
+    };
+    utterance.onerror = (event) => {
+      ttsPlaying = false;
+      addProctorLog('Browser TTS error: ' + (event.error || 'unknown'), 'warn');
+      reject(new Error(event.error || 'Browser TTS failed'));
+    };
+    ttsPlaying = true;
+    speechSynthesis.speak(utterance);
   });
 }
 
 function stopTTS() {
-  if (!ttsAudio) return;
-  ttsAudio.pause();
-  ttsAudio.currentTime = 0;
-  const btn = document.getElementById('ttsBtn');
-  btn.classList.remove('playing');
-  btn.textContent = '🔊 Read Question';
+  if (browserTTSSupported && speechSynthesis && speechSynthesis.speaking) {
+    speechSynthesis.cancel();
+  }
+  if (ttsAudio) {
+    ttsAudio.pause();
+    ttsAudio.currentTime = 0;
+  }
   ttsPlaying = false;
 }
 
@@ -912,6 +988,8 @@ function stopTTS() {
 async function startCamera() {
   const camVideo = document.getElementById('camFeed');
   const retryBtn = document.getElementById('camRetryBtn');
+  if (!retryBtn) return;  // Exit gracefully if camera panel not ready
+  
   retryBtn.disabled = true;
   stopCameraStream();
 
