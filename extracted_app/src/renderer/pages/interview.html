@@ -444,9 +444,24 @@ async function init() {
   const schedule = await window.examAPI.getSession('schedule');
   const qData    = await window.examAPI.getSession('questions');
 
-  if (!student || !qData) { window.examAPI.navigate('pin'); return; }
+  console.log('Interview Init - Student:', student);
+  console.log('Interview Init - Schedule:', schedule);
+  console.log('Interview Init - Questions Data:', qData);
+
+  if (!student || !qData) { 
+    console.error('Missing student or questions data');
+    window.examAPI.navigate('pin'); 
+    return; 
+  }
 
   questions = qData.questions || [];
+  console.log('Questions loaded:', questions.length, questions);
+  
+  if (questions.length === 0) {
+    console.error('No questions in qData');
+    addProctorLog('ERROR: No questions available', 'alert');
+  }
+  
   answers   = new Array(questions.length).fill('');
 
   document.getElementById('examBrand').textContent = `Interview – ${student.subject||'Exam'}`;
@@ -505,9 +520,23 @@ function buildProgDots() {
 
 function renderQuestion(idx) {
   currentIdx = idx;
+  
+  if (!questions || questions.length === 0) {
+    console.error('No questions available. Questions array:', questions);
+    document.getElementById('qText').textContent = 'Error: No questions loaded';
+    addProctorLog('ERROR: Questions not loaded', 'alert');
+    return;
+  }
+  
   const q = questions[idx];
+  if (!q) {
+    console.error('Question at index ' + idx + ' not found', questions);
+    document.getElementById('qText').textContent = 'Error: Question not found';
+    return;
+  }
+  
   document.getElementById('qNumBadge').textContent = `Question ${idx+1} of ${questions.length}`;
-  document.getElementById('qText').textContent      = q.question;
+  document.getElementById('qText').textContent      = q.question || 'Question text not available';
   document.getElementById('answerBox').value         = answers[idx] || '';
 
   const fu = document.getElementById('followup');
