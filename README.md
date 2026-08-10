@@ -130,3 +130,17 @@ The app will use mock data so you can test all flows.
 | MCQ | AI-generated questions, single correct answer |
 | CODING | LeetCode-style with live compiler (C, C++, Java, Python) |
 | INTERVIEW | Speech + text answers, live camera proctoring, Gemini face analysis |
+
+---
+
+## 🔗 Student 360 Ecosystem & Demos
+
+This Electron application is a core client component of the broader **Student 360** platform. For a complete understanding of the system's administration, backend integrations, and UI portals, please check the resources below:
+
+* **🖥️ Main Web Application Repository:** [STUDENT-360 Web Portal](https://github.com/lokeshkodamanchili/STUDENT-360)  
+  *Contains the student portal, admin dashboard, Firebase configurations, and API routes for exam submission.*
+
+* **🎥 Platform Video Walkthroughs:** [Student 360 Video Demo Folder](https://github.com/lokeshkodamanchili/STUDENT-360/tree/main/Documentation%20%26%20Demo/Video%20Demo)  
+  *Provides step-by-step video recordings showing the proctored exam client integration, results submission, and portal dashboards in action.*
+
+---
