@@ -281,13 +281,26 @@ function updateStatus() {
     return;
   }
 
+  const preCheckInOpensAt = startMs - (15 * 60 * 1000);
+  if (now >= preCheckInOpensAt) {
+    const diff = startMs - now;
+    const mins = Math.floor(diff / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    document.getElementById('statusLabel').textContent = 'Pre-exam Check-in Open';
+    document.getElementById('statusTimer').textContent = `${pad(mins)}:${pad(secs)} until exam start`;
+    document.getElementById('statusTimer').classList.add('active');
+    document.getElementById('takeExamBtn').disabled = false;
+    document.getElementById('takeExamBtn').textContent = 'Start Camera Check-in';
+    return;
+  }
+
   // Waiting for start
-  const diff = startMs - now;
+  const diff = preCheckInOpensAt - now;
   const hours = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
   const secs = Math.floor((diff % 60000) / 1000);
   
-  document.getElementById('statusLabel').textContent = 'Exam Begins In';
+  document.getElementById('statusLabel').textContent = 'Pre-exam Check-in Opens In';
   document.getElementById('statusTimer').textContent = `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
   document.getElementById('statusTimer').classList.remove('active');
   document.getElementById('takeExamBtn').disabled = true;
