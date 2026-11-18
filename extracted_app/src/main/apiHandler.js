@@ -144,6 +144,11 @@ async function generateQuestions(examData) {
   const { examId, examType, difficulty, subject, questionCount, description, studentId } = examData;
   
   try {
+    if (examId && store.getQuestionBank) {
+      const uploaded = await store.getQuestionBank(examId);
+      if (uploaded) return createResponse(true, uploaded);
+      if (store.usesQuestionBank?.()) throw new Error('Administrator question bank is missing. Contact the exam administrator.');
+    }
     if (config.CACHE_GENERATED_QUESTIONS && examId) {
       const cached = await store.getGeneratedQuestions(examId);
       if (cached?.payload) return createResponse(true, { type: examType, ...cached.payload });
@@ -202,10 +207,14 @@ async function submitInterview(payload) {
 
 function normalizeSchedule(s) {
   if (!s) return null;
+  const duration = parseDurationValue(s.duration) || 3600;
+  const dateStart = s.date && s.time ? new Date(`${s.date}T${s.time}`) : null;
+  const startTime = s.startTime || s.start_time || s.start || (dateStart && !isNaN(dateStart) ? dateStart.toISOString() : null);
   return {
-    startTime: s.startTime || s.start_time || s.start || null,
-    endTime: s.endTime || s.end_time || s.end || null,
-    duration: parseDurationValue(s.duration) || 3600
+    id: s.id || s.examId || null,
+    startTime,
+    endTime: s.endTime || s.end_time || s.end || (startTime ? new Date(new Date(startTime).getTime() + duration * 1000).toISOString() : null),
+    duration
   };
 }
 
@@ -213,7 +222,7 @@ function normalizeStudent(s, rollNo, invite, exam) {
   return {
     rollNumber: rollNo || s?.rollNumber || '',
     name: s?.name || invite?.studentName || 'Student',
-    examType: invite?.examType || exam?.type || s?.examType || 'MCQ',
+    examType: /interview/i.test(invite?.examType || exam?.examType || exam?.type || s?.examType || '') ? 'INTERVIEW' : /coding/i.test(invite?.examType || exam?.examType || exam?.type || s?.examType || '') ? 'CODING' : 'MCQ',
     difficulty: invite?.difficulty || exam?.difficulty || 'medium',
     subject: invite?.subject || exam?.title || 'General'
   };
@@ -221,12 +230,13 @@ function normalizeStudent(s, rollNo, invite, exam) {
 
 function parseDurationValue(v) {
   if (!v) return null;
-  const n = parseInt(v, 10);
-  return isNaN(n) ? null : (n <= 720 ? n * 60 : n);
+  const n = parseFloat(v);
+  return isNaN(n) ? null : /hour/i.test(String(v)) ? n * 3600 : /min/i.test(String(v)) ? n * 60 : (n <= 720 ? n * 60 : n);
 }
 
 async function runCode({ code, language, stdin }) {
   try {
+    if (store.usesQuestionBank?.()) return createResponse(true, await store.runUploadedCode({code,language,stdin}));
     const langKey = language.toLowerCase();
     
     // 1. Try direct compiler endpoints (Cloud Run, etc.)
@@ -261,6 +271,10 @@ async function runCode({ code, language, stdin }) {
 
 async function submitCode(payload) {
   try {
+    if (store.usesQuestionBank?.()) {
+      const saved = await store.saveSubmission({ ...payload, type:'code' });
+      return createResponse(true, { ...saved, submissionId:saved.id });
+    }
     const { code, language, testCases } = payload;
     const langKey = language.toLowerCase();
     
@@ -318,7 +332,7 @@ async function submitMCQ(payload) {
     const finalPayload = { ...payload, score, percentage: Math.round((score/questions.length)*100), submittedAt: new Date().toISOString() };
     const saved = await store.saveSubmission({ type: 'mcq', ...finalPayload });
     
-    return createResponse(true, { submissionId: saved.id, score });
+    return createResponse(true, { submissionId: saved.id, score: saved.score ?? score });
   } catch (err) {
     return createResponse(false, null, 'MCQ submission failed: ' + err.message);
   }
@@ -333,8 +347,25 @@ async function checkExamAlreadySubmitted(studentId, examId) {
   }
 }
 
+async function saveExamCheckin(payload) {
+  try { return createResponse(true, await store.saveExamCheckin(payload)); }
+  catch (error) { return createResponse(false, null, 'Lobby check-in was not saved: ' + error.message); }
+}
+
+// Forced submission saves the current answers immediately, without waiting for
+// external grading services. Evaluation can be reviewed afterwards.
+async function submitForced(type, payload) {
+  try {
+    const questions = Array.isArray(payload.questions) ? payload.questions : [];
+    const score = type === 'mcq' ? questions.reduce((total, question, index) => total + (payload.answers?.[index] === question.correct ? 1 : 0), 0) : undefined;
+    const saved = await store.saveSubmission({ ...payload, type: type === 'coding' ? 'code' : type, ...(type === 'mcq' ? { score, percentage: questions.length ? Math.round(score / questions.length * 100) : 0 } : {}), submissionReason: 'proctor_limit', evaluationPending: type !== 'mcq', submittedAt: new Date().toISOString() });
+    return createResponse(true, { submissionId: saved.id, autoSubmitted: true });
+  } catch (error) { return createResponse(false, null, 'Automatic submission pending: ' + error.message); }
+}
+
 module.exports = {
   validatePin,
+  submitForced,
   generateQuestions,
   analyzeFrame,
   submitInterview,
@@ -342,5 +373,6 @@ module.exports = {
   submitCode,
   submitMCQ,
   checkExamAlreadySubmitted,
+  saveExamCheckin,
   fetchExamSchedule: async (pin) => createResponse(true, await store.getInviteByCode(pin))
 };

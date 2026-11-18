@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('examAPI', {
 
   // Questions
   fetchQuestions:    (data)    => ipcRenderer.invoke('fetch-questions', data),
+  saveExamCheckin:   (payload) => ipcRenderer.invoke('save-exam-checkin', payload),
 
   // Exam control
   startExam:         ()        => ipcRenderer.invoke('start-exam'),
@@ -75,9 +76,18 @@ contextBridge.exposeInMainWorld('examAPI', {
   runCode:           (payload) => ipcRenderer.invoke('run-code', payload),
   submitCode:        (payload) => ipcRenderer.invoke('submit-code', payload),
   submitInterview:   (payload) => ipcRenderer.invoke('submit-interview', payload),
-  analyzeFrame:      (payload) => ipcRenderer.invoke('analyze-frame', payload),
   ttsSpeak:          (payload) => ipcRenderer.invoke('tts-speak', payload),
   transcribeAudio:   (payload) => ipcRenderer.invoke('transcribe-audio', payload),
   checkExamSubmission: (studentId, examId) => ipcRenderer.invoke('check-exam-submission', studentId, examId),
   exitApp:           () => ipcRenderer.invoke('exit-app'),
+  proctorState:      () => ipcRenderer.invoke('proctor-state'),
+  proctorDraft:      (type, payload) => ipcRenderer.invoke('proctor-draft', type, payload),
+  proctorObserve:    sample => ipcRenderer.invoke('proctor-observe', sample),
+  proctorFocus:      focused => ipcRenderer.invoke('proctor-focus', focused),
+  proctorForceSubmit: () => ipcRenderer.invoke('proctor-force-submit'),
+  onProctorSubmitted: callback => {
+    const listener = (_, result) => callback(result);
+    ipcRenderer.on('proctor-submitted', listener);
+    return () => ipcRenderer.removeListener('proctor-submitted', listener);
+  },
 });

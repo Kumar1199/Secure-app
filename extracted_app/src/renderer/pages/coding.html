@@ -287,7 +287,7 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
 <div class="tnav">
   <div class="tnav-l">
     <div class="logo-box">🛡</div>
-    <div class="prob-nav">
+    <div class="prob-nav"><select id="problemSelect" aria-label="Coding problem" onchange="switchProblem(Number(this.value))" style="max-width:220px;background:var(--surf);color:var(--tx);padding:6px;border:1px solid var(--brd)"></select><select id="problemSelect" aria-label="Coding problem" onchange="switchProblem(Number(this.value))" style="max-width:220px;background:var(--surf);color:var(--tx);padding:6px;border:1px solid var(--brd)"></select>
       <span class="prob-nav-lbl">📋 Problem</span>
       <div class="nav-vd"></div>
       <button class="arr-btn" disabled style="opacity:0.5;cursor:not-allowed">‹</button>
@@ -438,6 +438,7 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
   </div>
 </div>
 
+<script src="../scripts/exam-proctor.js"></script>
 <script>
 // ── Theme ─────────────────────────────────────────────────────
 let isDark = localStorage.getItem('lcTh') !== 'light';
@@ -469,13 +470,14 @@ document.addEventListener('keydown', e => {
 document.addEventListener('contextmenu', e => e.preventDefault());
 
 // ── State ─────────────────────────────────────────────────────
+let problems=[],problemIndex=0,problemDrafts={},uploadedBank=false,qDataRevision=null;
 let problem=null,student=null,schedule=null,examEnd=null,timerInt=null;
 let fontSize=13,curCase=0,tcResults=[],customCases=[];
 
 const STARTERS={
   cpp:'#include <bits/stdc++.h>\nusing namespace std;\n\nclass Solution {\npublic:\n    \n};\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    \n    return 0;\n}',
   c:'#include <stdio.h>\n#include <stdlib.h>\n\nint main() {\n    \n    return 0;\n}',
-  java:'import java.util.*;\nimport java.io.*;\n\npublic class Solution {\n    \n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        \n    }\n}',
+  java:'import java.util.*;\nimport java.io.*;\n\npublic class Main {\n    \n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        \n    }\n}',
   python:'import sys\nfrom collections import defaultdict, Counter\nfrom typing import List, Optional\ninput = sys.stdin.readline\n\n# Your solution here\n'
 };
 
@@ -517,6 +519,8 @@ async function init(){
     }
   }
 
+  uploadedBank = qData?.source === 'csv';
+  qDataRevision = qData?.revision || null;
   if(qData && qData.problem){ problem=qData.problem; }
   else {
     problem={
@@ -541,6 +545,13 @@ async function init(){
     };
   }
 
+  problems = qData?.problems?.length ? qData.problems : [problem];
+  document.getElementById('problemSelect').innerHTML=problems.map((p,i)=>`<option value="${i}">${i+1}. ${esc(p.title)}</option>`).join('');
+  if(uploadedBank && qData.languages?.length){
+    Array.from(document.getElementById('langSel').options).forEach(o=>o.disabled=!qData.languages.includes(o.value));
+    document.getElementById('langSel').value=qData.languages[0];
+  }
+  if(uploadedBank && !qData.languages?.length) logC('No compiler is configured. Code can be saved for administrator evaluation.','err');
   const duration = (student && student.duration) ? student.duration : 3600;
   if(schedule && schedule.endTime){
     const end = new Date(schedule.endTime);
@@ -549,10 +560,27 @@ async function init(){
     examEnd = new Date(Date.now() + duration * 1000);
   }
 
-  renderProb();buildCaseTabs();setStarter();startTimer();initDrags();
+  renderProb();buildCaseTabs();setStarter();initDrags();
+  await ExamProctor.start({ type: 'coding', onAutoSubmit: () => clearInterval(timerInt), getPayload: codingPayload });
+  startTimer();
 }
 
 // ── Render problem ────────────────────────────────────────────
+function saveProblemDraft(){
+  if(problem)problemDrafts[problem.id||String(problemIndex)]={problemId:problem.id||String(problemIndex),code:document.getElementById('cta').value,language:document.getElementById('langSel').value};
+}
+function codingPayload(){
+  saveProblemDraft();
+  return {studentId:student.rollNumber,examId:schedule?.id,questionRevision:qDataRevision,code:document.getElementById('cta').value,language:document.getElementById('langSel').value,...(uploadedBank?{solutions:problems.map((p,i)=>problemDrafts[p.id||String(i)]||{problemId:p.id||String(i),code:'',language:document.getElementById('langSel').value})}:{testCases:problem.testCases||[]})};
+}
+function switchProblem(index){
+  saveProblemDraft();problemIndex=index;problem=problems[index];
+  const draft=problemDrafts[problem.id||String(index)];
+  if(draft)document.getElementById('langSel').value=draft.language;
+  renderProb();buildCaseTabs();setStarter();
+  if(draft){document.getElementById('cta').value=draft.code;updateLines();}
+  tcResults=[];curCase=0;clrConsole();
+}
 function renderProb(){
   document.getElementById('probTitle').textContent = problem.title||'Problem';
   const d=(student?.difficulty||'medium').toLowerCase();
@@ -805,7 +833,8 @@ async function runCode(){
       const res = resObj.data || {};
       const actual=(res.stdout||'').trim();
       const expected=(examples[i].output||'').trim();
-      const passed=actual===expected;
+      const comparable=value=>String(value||'').replace(/\r\n?/g,'\n').trim().replace(/\s+/g,' ');
+      const passed=resObj.success && !res.stderr && !res.compile_output && !res.error && (res.exit_code===undefined || Number(res.exit_code)===0) && (!res.status || res.status.id===3) && comparable(actual)===comparable(expected);
       tcResults[i]={passed,actual,expected,time:res.time || 0.1,status:res.status?.description || (passed?'Accepted':'Wrong Answer'),stderr:res.stderr};
       if(passed){logC('  Case '+(i+1)+': ✓ Accepted','ok');passCount++;}
       else{logC('  Case '+(i+1)+': ✗ '+(res.status?.description||'Wrong Answer'),'err');
@@ -862,11 +891,13 @@ function setRunLoad(on){
 }
 
 // ── Submit ────────────────────────────────────────────────────
-async function submitAllCases(){
-  const code=document.getElementById('cta').value.trim();if(!code)return;
+let codingSubmissionBusy = false;
+async function submitAllCases(expired = false){
+  if (codingSubmissionBusy) return;
+  const code=document.getElementById('cta').value.trim();if(!code && !expired && !uploadedBank)return;
   
   // Check if exam is still within time window
-  if(schedule){
+  if(schedule && !expired){
     const now = Date.now();
     if(schedule.endTime){
       const examEndTime = new Date(schedule.endTime);
@@ -877,25 +908,28 @@ async function submitAllCases(){
     }
   }
   
+  codingSubmissionBusy = true;
   document.getElementById('subBtn').disabled=true;
   document.getElementById('subSp').classList.add('on');
   document.getElementById('subLbl').textContent='Submitting...';
   const lang=document.getElementById('langSel').value;
   const pin=await window.examAPI.getSession('pin');
-  const res=await window.examAPI.submitCode({
-    studentId:student.rollNumber,
-    examId: schedule?.id,
-    pin,code,language:lang,
-    testCases:problem.testCases||[]
-  });
+  const res=await window.examAPI.submitCode({...codingPayload(),pin});
   document.getElementById('subSp').classList.remove('on');
   document.getElementById('subLbl').textContent='Submit';
+  if (!res?.success) {
+    codingSubmissionBusy = false; document.getElementById('subBtn').disabled = false;
+    logC('Submission was not saved. Your code is preserved; retry submission.', 'fail'); return;
+  }
 
   const result = res.data || {};
-  const passed=result.passedCases||0,total=result.totalCases||problem.testCases?.length || 5;
+  const passed=result.passedCases||0,total=result.totalCases||problem.testCases?.length || 0;
   document.getElementById('stP').textContent=passed;
   document.getElementById('stT').textContent=total;
-  if(result.allPassed){
+  if(result.evaluationPending){
+    document.getElementById('ovTitle').textContent='Submitted — evaluation pending';
+    document.getElementById('ovMsg').textContent='Your code was saved. The administrator can retry grading when the compiler is available.';
+  } else if(result.allPassed){
     document.getElementById('ovIcon').textContent='🎉';
     document.getElementById('ovTitle').textContent='Accepted';
     document.getElementById('ovMsg').textContent='All test cases passed! Excellent solution.';
@@ -907,6 +941,11 @@ async function submitAllCases(){
     document.getElementById('stP').style.color=passed>0?'var(--med)':'var(--hard)';
   }
   document.getElementById('ov').classList.add('on');
+  if (res && res.success) {
+    ExamProctor.stop();
+    await window.examAPI.endExam();
+    setTimeout(() => window.examAPI.exitApp(), 5000);
+  }
 }
 async function finishExam(){await window.examAPI.endExam();await window.examAPI.navigate('completed');}
 
@@ -930,7 +969,7 @@ function tickT(){
   tp.className=diff<300000?(diff<60000?'timer-pill crit':'timer-pill warn'):'timer-pill';
 }
 function pad(n){return String(n).padStart(2,'0');}
-async function autoSub(){await window.examAPI.endExam();await window.examAPI.navigate('completed');}
+async function autoSub(){await submitAllCases(true);}
 
 // ── Drags ─────────────────────────────────────────────────────
 function initDrags(){

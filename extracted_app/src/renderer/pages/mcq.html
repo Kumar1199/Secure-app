@@ -237,6 +237,7 @@ html,body { overflow: hidden; width: 100%; height: 100%; margin: 0; padding: 0; 
   </div>
 </div>
 
+<script src="../scripts/exam-proctor.js"></script>
 <script>
 let questions   = [];
 let answers     = [];
@@ -245,6 +246,8 @@ let examEndTime = null;
 let timerInterval = null;
 let student     = null;
 let schedule    = null;
+let questionRevision = null;
+let submissionBusy = false;
 
 // ── Theme ─────────────────────────────────────────────────────
 let isDark = localStorage.getItem('theme') !== 'light';
@@ -283,6 +286,7 @@ async function init() {
   student = await window.examAPI.getSession('student');
   schedule = await window.examAPI.getSession('schedule');
   const qData    = await window.examAPI.getSession('questions');
+  questionRevision = qData?.revision || null;
 
   if (!student) { window.examAPI.navigate('pin'); return; }
 
@@ -317,6 +321,7 @@ async function init() {
 
   buildGrid();
   renderQuestion(0);
+  await ExamProctor.start({ type: 'mcq', onAutoSubmit: () => clearInterval(timerInterval), getPayload: () => ({ studentId: student.rollNumber, examId: schedule?.id, answers: [...answers], questions, timeTaken: -1 }) });
   startTimer();
 }
 
@@ -452,6 +457,8 @@ function confirmSubmit() {
 function closeModal() { document.getElementById('submitModal').style.display='none'; }
 
 async function doSubmit() {
+  if (submissionBusy) return;
+  submissionBusy = true;
   closeModal();
   clearInterval(timerInterval);
 
@@ -461,27 +468,22 @@ async function doSubmit() {
   const res = await window.examAPI.submitMCQ({
     studentId: student.rollNumber,
     examId: schedule?.id,
-    pin, answers, questions,
+    pin, answers, questions, questionRevision,
     timeTaken
   });
 
   if (res && res.success) {
+    ExamProctor.stop();
     await window.examAPI.endExam();
     await window.examAPI.navigate('completed');
+  } else {
+    submissionBusy = false;
+    alert('Submission could not be saved. Your answers are still here. Please retry.');
   }
 }
 
 async function autoSubmit() {
-  clearInterval(timerInterval);
-  const pin = await window.examAPI.getSession('pin');
-  await window.examAPI.submitMCQ({
-    studentId: student.rollNumber,
-    examId: schedule?.id,
-    pin, answers, questions,
-    timeTaken: -1
-  });
-  await window.examAPI.endExam();
-  await window.examAPI.navigate('completed');
+  await doSubmit();
 }
 
 init();

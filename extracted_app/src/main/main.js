@@ -1,6 +1,9 @@
 // src/main/main.js
-const { app, BrowserWindow, ipcMain, screen, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, powerSaveBlocker, protocol, safeStorage } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const { ProctorPolicy } = require('./proctorPolicy');
+const { sanitizeEvidence } = require('./proctorEvidence');
 const lockdown = require('./lockdown');
 const apiHandler = require('./apiHandler');
 const speechService = require('./speechService');
@@ -11,6 +14,34 @@ let mainWindow = null;
 let powerSaveId = null;
 let examActive = false;
 let examCompleted = false;
+let proctor = new ProctorPolicy();
+let lastDraft = null, submitting = null, submitted = null;
+let evidenceReviewUntil = 0;
+protocol.registerSchemesAsPrivileged([{ scheme: 's360-assets', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
+
+function pendingFile() { return path.join(app.getPath('userData'), 'pending-proctored-exam.bin'); }
+function preserveForcedDraft(type, payload) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure local answer storage is unavailable. Keep the app open and retry submission.');
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  const filename = pendingFile();
+  fs.writeFileSync(filename + '.tmp', safeStorage.encryptString(JSON.stringify({ type, payload })));
+  fs.renameSync(filename + '.tmp', filename);
+}
+async function submitProtected(type, payload, forced = false) {
+  if (submitted) return submitted;
+  if (submitting) return submitting;
+  const finalPayload = { ...payload, proctorReport: proctor.report() };
+  if (forced || proctor.terminated) finalPayload.submissionReason = 'proctor_limit';
+  submitting = (async () => {
+    if (finalPayload.submissionReason === 'proctor_limit') preserveForcedDraft(type, finalPayload);
+    const method = type === 'mcq' ? 'submitMCQ' : type === 'coding' ? 'submitCode' : 'submitInterview';
+    const result = finalPayload.submissionReason === 'proctor_limit'
+      ? await apiHandler.submitForced(type, finalPayload) : await apiHandler[method](finalPayload);
+    if (result?.success) { submitted = result; try { fs.unlinkSync(pendingFile()); } catch {} }
+    return result;
+  })();
+  try { return await submitting; } finally { submitting = null; }
+}
 
 /**
  * A+ Grade IPC Handler Wrapper
@@ -45,6 +76,7 @@ app.on('second-instance', () => {
 
 // ─── App Ready ────────────────────────────────────────────────
 app.whenReady().then(() => {
+  require('./proctorAssets').registerProctorAssets();
   createWindow();
   app.on('activate', () => { if (!mainWindow) createWindow(); });
 }).catch(err => {
@@ -71,7 +103,7 @@ function createWindow() {
 
   const ses = mainWindow.webContents.session;
   ses.setPermissionRequestHandler((webContents, permission, callback) => {
-    if (permission === 'media') return callback(true);
+    if (permission === 'media' && webContents === mainWindow.webContents && webContents.getURL().startsWith('file://')) return callback(true);
     callback(false);
   });
 
@@ -82,11 +114,27 @@ function createWindow() {
 
 // ─── Registered Handlers ─────────────────────────────────────
 
-handleIPC('validate-pin', (_, pin) => apiHandler.validatePin(pin));
+handleIPC('validate-pin', async (_, pin) => {
+  const result = await apiHandler.validatePin(pin);
+  if (result?.success && fs.existsSync(pendingFile())) {
+    try {
+      const pending = JSON.parse(safeStorage.decryptString(fs.readFileSync(pendingFile())));
+      if (pending.payload.studentId === result.data.student.rollNumber && pending.payload.examId === result.data.invite?.examId) {
+        const saved = await apiHandler.submitForced(pending.type, pending.payload);
+        if (saved?.success) { fs.unlinkSync(pendingFile()); return { success: false, message: 'Your previous automatic submission has now been saved. This exam cannot be retaken.' }; }
+        return { success: false, message: 'Your previous submission is pending. Check the connection and retry this PIN.' };
+      }
+      return { success: false, message: 'A previous automatic submission is pending. Retry that exam PIN before starting another exam.' };
+    } catch { return { success: false, message: 'A protected exam submission needs recovery. Contact the administrator.' }; }
+  }
+  return result;
+});
 handleIPC('fetch-exam-schedule', (_, pin) => apiHandler.fetchExamSchedule(pin));
 handleIPC('fetch-questions', (_, data) => apiHandler.generateQuestions(data));
+handleIPC('save-exam-checkin', (_, payload) => apiHandler.saveExamCheckin(payload));
 
 handleIPC('start-exam', async () => {
+  if (!examActive) { proctor = new ProctorPolicy(); lastDraft = null; submitting = null; submitted = null; evidenceReviewUntil = 0; }
   examActive = true;
   lockdown.start(mainWindow);
   powerSaveId = powerSaveBlocker.start('prevent-display-sleep');
@@ -108,12 +156,33 @@ handleIPC('exit-app', async () => {
   return { success: true };
 });
 
-handleIPC('submit-mcq', (_, p) => apiHandler.submitMCQ(p));
+handleIPC('proctor-state', () => proctor.report());
+handleIPC('proctor-draft', (_, type, payload) => {
+  if (!examActive || !['mcq','coding','interview'].includes(type)) return { success: false };
+  if (!proctor.terminated) lastDraft = { type, payload };
+  return { success: true };
+});
+handleIPC('proctor-observe', (_, sample) => {
+  if (!examActive || submitted) return { ...proctor.snapshot(), inactive: true };
+  const result = proctor.observe(sample);
+  if (result.event?.type === 'confirmed_incident') {
+    result.event.evidence = sanitizeEvidence(sample.evidence);
+    result.event.evidenceMissing = !result.event.evidence;
+    if (result.action === 'submit') evidenceReviewUntil = Date.now() + 120000;
+  }
+  if (result.action === 'submit') result.reviewUntil = evidenceReviewUntil;
+  if (result.action === 'submit' && lastDraft) {
+    void submitProtected(lastDraft.type, lastDraft.payload, true).then(value => mainWindow?.webContents.send('proctor-submitted', value)).catch(error => mainWindow?.webContents.send('proctor-submitted', { success: false, message: error.message }));
+  }
+  return result;
+});
+handleIPC('proctor-focus', (_, focused) => { if (examActive) proctor.record(focused ? 'window_focused' : 'window_unfocused', { advisory: true }); return true; });
+handleIPC('proctor-force-submit', () => lastDraft ? submitProtected(lastDraft.type, lastDraft.payload, true) : { success: false, message: 'No answer draft is available.' });
+handleIPC('submit-mcq', (_, p) => submitProtected('mcq', p));
 handleIPC('run-code', (_, p) => apiHandler.runCode(p));
-handleIPC('submit-code', (_, p) => apiHandler.submitCode(p));
-handleIPC('submit-interview', (_, p) => apiHandler.submitInterview(p));
+handleIPC('submit-code', (_, p) => submitProtected('coding', p));
+handleIPC('submit-interview', (_, p) => submitProtected('interview', p));
 handleIPC('check-exam-submission', (_, studentId, examId) => apiHandler.checkExamAlreadySubmitted(studentId, examId));
-handleIPC('analyze-frame', (_, p) => apiHandler.analyzeFrame(p));
 
 handleIPC('tts-speak', (_, p) => speechService.textToSpeech_espeak(p.text, p.lang));
 handleIPC('transcribe-audio', (_, p) => speechService.speechToText_whisper(p.base64, p.mimeType));

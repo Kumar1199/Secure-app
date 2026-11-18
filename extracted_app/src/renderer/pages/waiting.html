@@ -86,6 +86,12 @@ h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5
   flex-direction: column; align-items: center; gap: 20px;
 }
 .ready-view.show { display: flex; }
+.lobby-view { display:none; text-align:left; }
+.lobby-view.show { display:block; }
+.lobby-view video { display:block; width:min(360px,100%); margin:16px auto; border-radius:12px; transform:scaleX(-1); background:#000; }
+.lobby-check { display:flex; gap:10px; align-items:flex-start; margin:14px 0; font-size:13px; color:var(--text2); }
+.lobby-status { min-height:22px; text-align:center; color:var(--text2); font-size:14px; }
+.lobby-timer { display:none; text-align:center; font:700 30px var(--mono); color:var(--accent); margin-top:20px; }
 .success-icon {
   width: 80px; height: 80px;
   background: #22d3a0;
@@ -168,6 +174,17 @@ h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5
         🔒 Initialize Lockdown & Start
       </button>
     </div>
+    <div class="lobby-view" id="lobbyView">
+      <h2>Pre-exam lobby</h2>
+      <p class="subtitle" style="margin-bottom:16px">Complete this check before the exam can begin.</p>
+      <ul class="steps" style="margin-bottom:18px"><li class="step done"><div class="step-indicator">✓</div><span>Keep exactly one face in view and remove mobile phones.</span></li><li class="step done"><div class="step-indicator">✓</div><span>Camera access is required for the entire assessment.</span></li><li class="step done"><div class="step-indicator">✓</div><span>A check-in photo and camera check record are stored for 7 days, then automatically deleted.</span></li></ul>
+      <label class="lobby-check"><input id="lobbyConsent" type="checkbox"> <span>I have read the instructions and consent to the camera check-in photo and proctoring process.</span></label>
+      <video id="lobbyVideo" autoplay muted playsinline></video>
+      <p class="lobby-status" id="lobbyStatus">Accept the instructions, then enable your camera.</p>
+      <button class="btn btn-primary" id="lobbyCameraBtn" onclick="enableLobbyCamera()" disabled style="width:100%;height:48px">Enable camera</button>
+      <button class="btn btn-primary" id="lobbyContinueBtn" onclick="saveLobbyCheckin()" disabled style="width:100%;height:48px;margin-top:10px">Capture photo and continue</button>
+      <div class="lobby-timer" id="lobbyTimer"></div>
+    </div>
   </div>
 </div>
 
@@ -201,7 +218,7 @@ function setStep(idx, state) {
 
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
-let examStartTime = null, countdownInterval = null;
+let examStartTime = null, countdownInterval = null, lobbyStream = null, lobbyReady = false;
 
 async function init() {
   applyTheme();
@@ -218,6 +235,7 @@ async function init() {
   
   // Step 3
   const examData = {
+    examId: schedule?.id,
     examType: student.examType, difficulty: student.difficulty, subject: student.subject,
     questionCount: student.questionCount || 10, studentId: student.rollNumber
   };
@@ -228,8 +246,8 @@ async function init() {
   } catch(e) {}
   
   if (!questions) {
-     // Mock fallback
-     questions = { success: true, type: (student.examType||'MCQ').toUpperCase(), questions: [] };
+    document.body.innerHTML = '<main style="padding:48px;font:20px sans-serif;color:#fafafa;background:#111;height:100vh"><h2>Questions could not be loaded</h2><p>Contact the exam administrator to upload questions or check the server connection. Restart the app to retry.</p></main>';
+    return;
   }
   await window.examAPI.setSession('questions', questions);
   setStep(3,'done'); setStep(4,'active'); await sleep(800);
@@ -237,15 +255,49 @@ async function init() {
   // Step 4
   setStep(4,'done'); await sleep(400);
 
-  if (schedule && schedule.startTime) {
-    examStartTime = new Date(schedule.startTime);
-    if (examStartTime.getTime() > Date.now() + 2000) {
-      document.getElementById('waitBox').classList.add('show');
-      startWaitCountdown();
-      return;
-    }
+  openLobby();
+}
+
+function openLobby() {
+  document.getElementById('mainView').style.display = 'none';
+  document.getElementById('lobbyView').classList.add('show');
+  document.getElementById('lobbyConsent').onchange = event => { document.getElementById('lobbyCameraBtn').disabled = !event.target.checked; };
+}
+async function enableLobbyCamera() {
+  const status=document.getElementById('lobbyStatus'), button=document.getElementById('lobbyCameraBtn');
+  button.disabled=true; status.textContent='Requesting camera permission and checking the live feed…';
+  try {
+    lobbyStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:20}},audio:false});
+    const video=document.getElementById('lobbyVideo'); video.srcObject=lobbyStream; await video.play();
+    if (!video.videoWidth || !video.videoHeight) throw new Error('The camera did not provide a video frame.');
+    lobbyReady=true; status.textContent=`Camera working (${video.videoWidth} × ${video.videoHeight}). Capture your check-in photo to continue.`;
+    document.getElementById('lobbyContinueBtn').disabled=false; button.textContent='Camera ready';
+  } catch (error) {
+    lobbyReady=false; status.textContent='Camera is blocked or unavailable. Allow camera access in Windows Settings, close other camera apps, then retry.';
+    button.disabled=false; button.textContent='Retry camera';
   }
-  showReady();
+}
+async function saveLobbyCheckin() {
+  if (!lobbyReady) return;
+  const button=document.getElementById('lobbyContinueBtn'), status=document.getElementById('lobbyStatus'), video=document.getElementById('lobbyVideo');
+  button.disabled=true; status.textContent='Saving your lobby check-in…';
+  try {
+    const scale=Math.min(1,640/video.videoWidth,480/video.videoHeight), canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(video.videoWidth*scale)); canvas.height=Math.max(1,Math.round(video.videoHeight*scale)); canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+    const student=await window.examAPI.getSession('student'), schedule=await window.examAPI.getSession('schedule');
+    const result=await window.examAPI.saveExamCheckin({studentId:student?.rollNumber,examId:schedule?.id,photo:canvas.toDataURL('image/jpeg',0.65),capturedAt:new Date().toISOString(),instructionsAccepted:true,camera:{permission:'granted',width:canvas.width,height:canvas.height}});
+    if (!result?.success) throw new Error(result?.message||'The check-in was not saved.');
+    lobbyStream?.getTracks().forEach(track=>track.stop()); lobbyStream=null; status.textContent='Camera check-in saved. Preparing your exam…';
+    continueAfterLobby();
+  } catch (error) { status.textContent=error.message||'Unable to save the check-in. Check the server connection and try again.'; button.disabled=false; }
+}
+function continueAfterLobby() {
+  const schedulePromise=window.examAPI.getSession('schedule');
+  schedulePromise.then(schedule=>{
+    if (schedule?.startTime && new Date(schedule.startTime).getTime()>Date.now()+2000) {
+      examStartTime=new Date(schedule.startTime); document.getElementById('lobbyTimer').style.display='block'; startWaitCountdown();
+    } else showReady();
+  });
 }
 
 function startWaitCountdown() {
@@ -255,11 +307,12 @@ function tick() {
   const diff = examStartTime.getTime() - Date.now();
   if (diff <= 0) { clearInterval(countdownInterval); showReady(); return; }
   const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000), s = Math.floor((diff%60000)/1000);
-  document.getElementById('scTimer').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  const value=`${pad(h)}:${pad(m)}:${pad(s)}`; document.getElementById('scTimer').textContent = value; document.getElementById('lobbyTimer').textContent = `Exam starts in ${value}`;
 }
 function pad(n) { return String(n).padStart(2,'0'); }
 function showReady() {
   document.getElementById('mainView').style.display = 'none';
+  document.getElementById('lobbyView').classList.remove('show');
   document.getElementById('readyView').classList.add('show');
 }
 async function activateLockdown() {

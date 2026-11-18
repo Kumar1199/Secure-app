@@ -333,7 +333,7 @@ video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
       <div class="cam-controls">
         <button class="cam-refresh" id="camRetryBtn" onclick="retryCamera()">↻ Retry Camera</button>
         <span id="camStatusText" class="cam-status-text">Camera ready</span>
-        <div class="rec-badge"><div class="rec-dot"></div>REC</div>
+        <div class="rec-badge"><div class="rec-dot"></div>LOCAL</div>
       </div>
     </div>
     <div class="video-wrap">
@@ -369,6 +369,7 @@ video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
 <canvas id="snapCanvas" style="display:none" width="320" height="240"></canvas>
 <audio id="ttsAudio" hidden></audio>
 
+<script src="../scripts/exam-proctor.js"></script>
 <script>
 // ── Theme ─────────────────────────────────────────────────────
 let isDark = localStorage.getItem('theme') !== 'light';
@@ -476,10 +477,21 @@ async function init() {
   buildProgDots();
   renderQuestion(0);
   addProctorLog('Init: Question render complete', 'info');
+  await ExamProctor.start({ type: 'interview', getPayload: () => {
+    saveAnswer();
+    return { studentId: student.rollNumber, examId: schedule?.id, responses: questions.map((q,i) => ({ questionId: q.id, question: q.question, answer: answers[i] || '', expectedKeyPoints: q.expectedKeyPoints || [] })), proctorLog };
+  }, onSample: sample => {
+    document.getElementById('statFace').textContent = `${sample.faceCount} face(s)`;
+    document.getElementById('statAttn').textContent = `Head: ${sample.headDirection}`;
+    document.getElementById('statAlrt').textContent = sample.phoneConfidence >= 0.75 ? 'Phone detected' : 'No phone detected';
+    document.getElementById('camStatusText').textContent = 'Local camera checks active';
+  }, onWarning: message => addProctorLog(message, 'warn'), onAutoSubmit: () => {
+    clearInterval(timerInt); if (isRecording) stopMic(); stopTTS();
+  } });
   startTimer();
   
   // Load voice and camera async (non-blocking)
-  startCamera().catch(e => console.warn('Camera init failed:', e));
+
   
   // Initialize voice support and network checks async
   setTimeout(() => {
@@ -1047,134 +1059,8 @@ function stopTTS() {
 }
 
 // ── Camera ────────────────────────────────────────────────────
-async function startCamera() {
-  const camVideo = document.getElementById('camFeed');
-  const retryBtn = document.getElementById('camRetryBtn');
-  if (!retryBtn) return;  // Exit gracefully if camera panel not ready
-  
-  retryBtn.disabled = true;
-  stopCameraStream();
-
-  try {
-    camStream = await navigator.mediaDevices.getUserMedia({
-      video: { width:320, height:240, facingMode:'user' },
-      audio: false
-    });
-
-    camVideo.srcObject = camStream;
-    camVideo.muted = true;
-    camVideo.onloadedmetadata = () => camVideo.play().catch(() => {});
-    await camVideo.play().catch(() => {});
-
-    addProctorLog('Camera started. Proctoring active.', 'ok');
-    document.getElementById('statFace').textContent = '👤 Face OK';
-    document.getElementById('statFace').className = 'cam-stat-pill csp-green';
-    document.getElementById('camStatusText').textContent = 'Camera active';
-    retryBtn.disabled = false;
-
-    if (proctorInt) clearInterval(proctorInt);
-    proctorInt = setInterval(() => {
-      checkCameraHealth();
-      analyzeFrame();
-    }, 5000);
-  } catch (err) {
-    retryBtn.disabled = false;
-    addProctorLog('Camera access denied: ' + err.message, 'alert');
-    document.getElementById('statFace').textContent = '❌ No Camera';
-    document.getElementById('statFace').className   = 'cam-stat-pill csp-red';
-    document.getElementById('camStatusText').textContent = 'Camera blocked. Click retry to request permission again.';
-  }
-}
-
-function stopCameraStream() {
-  if (proctorInt) { clearInterval(proctorInt); proctorInt = null; }
-  if (cameraHealthInt) { clearInterval(cameraHealthInt); cameraHealthInt = null; }
-  if (camStream) {
-    camStream.getTracks().forEach(t => t.stop());
-    camStream = null;
-  }
-  const camVideo = document.getElementById('camFeed');
-  if (camVideo) camVideo.srcObject = null;
-}
-
-function retryCamera() {
-  addProctorLog('Requesting camera permission...', 'info');
-  const retryBtn = document.getElementById('camRetryBtn');
-  retryBtn.disabled = true;
-  retryBtn.textContent = '⏳ Requesting…';
-  document.getElementById('camStatusText').textContent = 'Requesting camera access...';
-  startCamera().finally(() => {
-    retryBtn.disabled = false;
-    retryBtn.textContent = '↻ Retry Camera';
-  });
-}
-
-async function checkCameraHealth() {
-  const camVideo = document.getElementById('camFeed');
-  if (!camVideo || !camStream || !camStream.active || camVideo.readyState < 2 || camVideo.videoWidth === 0 || camVideo.videoHeight === 0) {
-    addProctorLog('Camera appears inactive. Refreshing feed...', 'warn');
-    await startCamera();
-  }
-}
-
-async function analyzeFrame() {
-  if (isAnalyzing) return;
-  const video  = document.getElementById('camFeed');
-  if (!video || video.paused || video.ended || video.readyState < 2) return;
-
-  const canvas = document.getElementById('snapCanvas');
-  const ctx    = canvas.getContext('2d');
-  
-  try {
-    isAnalyzing = true;
-    ctx.save(); 
-    ctx.scale(-1,1); 
-    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height); 
-    ctx.restore();
-
-    const frameB64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-    const q        = questions[currentIdx]?.question || '';
-    const ans      = document.getElementById('answerBox').value;
-
-    const res = await window.examAPI.analyzeFrame({ frameBase64:frameB64, question:q, answerSoFar:ans });
-    if (res && res.success && res.data) {
-      applyProctorAnalysis(res.data);
-    }
-  } catch (e) {
-    // silent
-  } finally {
-    isAnalyzing = false;
-  }
-}
-
-function applyProctorAnalysis(a) {
-  if (!a) return;
-
-  // Update overlays
-  document.getElementById('statFace').textContent = a.faceVisible ? '👤 Face OK' : '❌ No Face';
-  document.getElementById('statFace').className   = 'cam-stat-pill ' + (a.faceVisible?'csp-green':'csp-red');
-
-  document.getElementById('statAttn').textContent = a.eyesFocused ? '👁 Focused' : '👁 Distracted';
-  document.getElementById('statAttn').className   = 'cam-stat-pill ' + (a.eyesFocused?'csp-blue':'csp-yellow');
-
-  document.getElementById('statAlrt').textContent = a.proctorAlert ? '⚠️ Alert' : '✅ Clear';
-  document.getElementById('statAlrt').className   = 'cam-stat-pill ' + (a.proctorAlert?'csp-red':'csp-green');
-
-  // Log
-  if (a.proctorAlert) {
-    addProctorLog(`⚠️ ALERT: ${a.alertReason || 'Suspicious behavior detected'}`, 'alert');
-  } else if (!a.eyesFocused) {
-    addProctorLog('Observation: Student appears distracted or looking away.', 'warn');
-  } else {
-    // Only log periodic "OK" to avoid cluttering, or log expressions
-    if (Math.random() > 0.7) {
-      addProctorLog(`Proctoring: ${a.expression || 'neutral'} expression detected.`, 'info');
-    }
-  }
-
-  // Store in log for final submission
-  proctorLog.push({ timestamp: new Date().toISOString(), ...a });
-}
+function retryCamera() { return ExamProctor.retry(); }
+function stopCameraStream() { ExamProctor.stop(); }
 
 function addProctorLog(msg, type='info') {
   const log = document.getElementById('proctorLog');
@@ -1200,7 +1086,10 @@ function tickT() {
 function pad(n) { return String(n).padStart(2,'0'); }
 
 // ── Submit ────────────────────────────────────────────────────
+let interviewSubmissionBusy = false;
 async function submitInterview() {
+  if (interviewSubmissionBusy) return;
+  interviewSubmissionBusy = true;
   saveAnswer();
   clearInterval(timerInt);
   clearInterval(proctorInt);
@@ -1208,7 +1097,6 @@ async function submitInterview() {
   stopTTS();
 
   // Stop camera
-  stopCameraStream();
 
   const pin = await window.examAPI.getSession('pin');
   const schedule = await window.examAPI.getSession('schedule');
@@ -1236,12 +1124,17 @@ async function submitInterview() {
     });
 
     if (result && result.success) {
+      stopCameraStream();
       addProctorLog('Interview submitted successfully.', 'ok');
       document.getElementById('finishOverlay').classList.add('show');
+      await window.examAPI.endExam();
+      setTimeout(() => window.examAPI.exitApp(), 5000);
     } else {
+      interviewSubmissionBusy = false;
       addProctorLog('Interview submission failed: ' + (result?.message || 'Unknown error'), 'warn');
     }
   } catch (err) {
+    interviewSubmissionBusy = false;
     addProctorLog('Interview submission error: ' + err.message, 'alert');
   }
 }
