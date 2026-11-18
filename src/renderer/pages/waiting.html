@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+<title>SecureExam – Preparing</title>
+<link rel="stylesheet" href="../styles/global.css"/>
+<style>
+:root {
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+}
+
+.wait-card { 
+  width: min(520px, 95%); 
+  padding: 48px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 32px;
+  box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+}
+
+.loading-visual {
+  position: relative;
+  width: 100px; height: 100px;
+  margin: 0 auto 32px;
+}
+.outer-ring {
+  position: absolute; inset: 0;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.inner-ring {
+  position: absolute; inset: 12px;
+  border: 4px solid var(--border);
+  border-bottom-color: var(--accent2);
+  border-radius: 50%;
+  animation: spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
+.subtitle { color: var(--text2); font-size: 15px; margin-bottom: 40px; }
+
+.steps { list-style: none; text-align: left; margin-bottom: 40px; }
+.step {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text2);
+  transition: all 0.3s;
+}
+.step:last-child { border-bottom: none; }
+.step.done { color: #22d3a0; }
+.step.active { color: var(--text); font-weight: 600; }
+
+.step-indicator {
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.step-spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.countdown-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px;
+  display: none;
+}
+.countdown-box.show { display: block; }
+.clock-label { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
+.clock-time { font-size: 42px; font-weight: 800; font-family: var(--mono); color: var(--accent); letter-spacing: 2px; }
+
+.ready-view {
+  display: none;
+  flex-direction: column; align-items: center; gap: 20px;
+}
+.ready-view.show { display: flex; }
+.lobby-view { display:none; text-align:left; }
+.lobby-view.show { display:block; }
+.lobby-view video { display:block; width:min(360px,100%); margin:16px auto; border-radius:12px; transform:scaleX(-1); background:#000; }
+.lobby-check { display:flex; gap:10px; align-items:flex-start; margin:14px 0; font-size:13px; color:var(--text2); }
+.lobby-status { min-height:22px; text-align:center; color:var(--text2); font-size:14px; }
+.lobby-timer { display:none; text-align:center; font:700 30px var(--mono); color:var(--accent); margin-top:20px; }
+.success-icon {
+  width: 80px; height: 80px;
+  background: #22d3a0;
+  color: #fff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px;
+  box-shadow: 0 10px 20px rgba(34, 211, 160, 0.3);
+  animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.theme-toggle {
+  position: fixed; top: 24px; right: 24px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 100px; padding: 10px 20px;
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; font-size: 13px; color: var(--text2);
+  transition: all 0.3s;
+}
+.theme-toggle:hover { border-color: var(--accent); transform: scale(1.05); }
+.toggle-track { width: 32px; height: 18px; background: var(--border); border-radius: 100px; position: relative; }
+.toggle-track.on { background: var(--accent); }
+.toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform 0.3s; }
+.toggle-track.on .toggle-thumb { transform: translateX(14px); }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()">
+  <span id="themeIcon">☀️</span>
+  <div class="toggle-track" id="track"><div class="toggle-thumb"></div></div>
+  <span id="themeLabel">Light</span>
+</button>
+
+<div class="page">
+  <div class="wait-card fade-in">
+    <div id="mainView">
+      <div class="loading-visual">
+        <div class="outer-ring"></div>
+        <div class="inner-ring"></div>
+      </div>
+      <h2>Preparing Environment</h2>
+      <p class="subtitle">Please wait while we establish a secure session...</p>
+
+      <ul class="steps">
+        <li class="step active" id="step1">
+          <div class="step-indicator" id="s1"><div class="step-spinner"></div></div>
+          <span>Synchronizing with secure server</span>
+        </li>
+        <li class="step" id="step2">
+          <div class="step-indicator" id="s2">⏳</div>
+          <span>Verifying authorization tokens</span>
+        </li>
+        <li class="step" id="step3">
+          <div class="step-indicator" id="s3">⏳</div>
+          <span>Synthesizing exam modules</span>
+        </li>
+        <li class="step" id="step4">
+          <div class="step-indicator" id="s4">⏳</div>
+          <span>Activating monitoring protocols</span>
+        </li>
+      </ul>
+
+      <div class="countdown-box" id="waitBox">
+        <div class="clock-label">⏰ Deployment Starts In</div>
+        <div class="clock-time" id="scTimer">00:00:00</div>
+      </div>
+    </div>
+
+    <div class="ready-view" id="readyView">
+      <div class="success-icon">✓</div>
+      <h2>System Ready</h2>
+      <p>All protocols activated. Proceed to begin the assessment.</p>
+      <button class="btn btn-primary" id="startNowBtn" onclick="activateLockdown()" style="height:56px;margin-top:12px;box-shadow:0 12px 24px rgba(99,102,241,0.3)">
+        🔒 Initialize Lockdown & Start
+      </button>
+    </div>
+    <div class="lobby-view" id="lobbyView">
+      <h2>Pre-exam lobby</h2>
+      <p class="subtitle" style="margin-bottom:16px">Complete this check before the exam can begin.</p>
+      <ul class="steps" style="margin-bottom:18px"><li class="step done"><div class="step-indicator">✓</div><span>Keep exactly one face in view and remove mobile phones.</span></li><li class="step done"><div class="step-indicator">✓</div><span>Camera access is required for the entire assessment.</span></li><li class="step done"><div class="step-indicator">✓</div><span>A check-in photo and camera check record are stored for 7 days, then automatically deleted.</span></li></ul>
+      <label class="lobby-check"><input id="lobbyConsent" type="checkbox"> <span>I have read the instructions and consent to the camera check-in photo and proctoring process.</span></label>
+      <video id="lobbyVideo" autoplay muted playsinline></video>
+      <p class="lobby-status" id="lobbyStatus">Accept the instructions, then enable your camera.</p>
+      <button class="btn btn-primary" id="lobbyCameraBtn" onclick="enableLobbyCamera()" disabled style="width:100%;height:48px">Enable camera</button>
+      <button class="btn btn-primary" id="lobbyContinueBtn" onclick="saveLobbyCheckin()" disabled style="width:100%;height:48px;margin-top:10px">Capture photo and continue</button>
+      <div class="lobby-timer" id="lobbyTimer"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let isDark = localStorage.getItem('theme') !== 'light';
+function toggleTheme() { isDark = !isDark; applyTheme(); localStorage.setItem('theme', isDark ? 'dark' : 'light'); }
+function applyTheme() {
+  const r = document.documentElement;
+  if (!isDark) {
+    r.style.setProperty('--bg','#f0f2f8'); r.style.setProperty('--surface','#ffffff');
+    r.style.setProperty('--surface2','#f5f7ff'); r.style.setProperty('--border','#dde1f0');
+    r.style.setProperty('--text','#1a1e2e'); r.style.setProperty('--text2','#5a6080');
+  } else {
+    r.style.setProperty('--bg','#0a0c12'); r.style.setProperty('--surface','#111520');
+    r.style.setProperty('--surface2','#181e2e'); r.style.setProperty('--border','#232a3e');
+    r.style.setProperty('--text','#e8eaf6'); r.style.setProperty('--text2','#8892b0');
+  }
+  document.getElementById('track').className = 'toggle-track' + (!isDark ? ' on' : '');
+  document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
+  document.getElementById('themeLabel').textContent = isDark ? 'Light' : 'Dark';
+}
+
+function setStep(idx, state) {
+  const el = document.getElementById('step'+idx);
+  const ic = document.getElementById('s'+idx);
+  el.className = 'step ' + state;
+  if (state === 'done') ic.innerHTML = '✅';
+  if (state === 'active') ic.innerHTML = '<div class="step-spinner"></div>';
+  if (state === '') ic.innerHTML = '⏳';
+}
+
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+let examStartTime = null, countdownInterval = null, lobbyStream = null, lobbyReady = false;
+
+async function init() {
+  applyTheme();
+  await sleep(1000);
+
+  const student  = await window.examAPI.getSession('student');
+  const schedule = await window.examAPI.getSession('schedule');
+  if (!student) { window.examAPI.navigate('pin'); return; }
+
+  // Step 1
+  setStep(1,'done'); setStep(2,'active'); await sleep(800);
+  // Step 2
+  setStep(2,'done'); setStep(3,'active'); await sleep(1000);
+  
+  // Step 3
+  const examData = {
+    examId: schedule?.id,
+    examType: student.examType, difficulty: student.difficulty, subject: student.subject,
+    questionCount: student.questionCount || 10, studentId: student.rollNumber
+  };
+  let questions = null;
+  try {
+    const res = await window.examAPI.fetchQuestions(examData);
+    if (res && res.success) questions = res.data;
+  } catch(e) {}
+  
+  if (!questions) {
+    document.body.innerHTML = '<main style="padding:48px;font:20px sans-serif;color:#fafafa;background:#111;height:100vh"><h2>Questions could not be loaded</h2><p>Contact the exam administrator to upload questions or check the server connection. Restart the app to retry.</p></main>';
+    return;
+  }
+  await window.examAPI.setSession('questions', questions);
+  setStep(3,'done'); setStep(4,'active'); await sleep(800);
+
+  // Step 4
+  setStep(4,'done'); await sleep(400);
+
+  openLobby();
+}
+
+function openLobby() {
+  document.getElementById('mainView').style.display = 'none';
+  document.getElementById('lobbyView').classList.add('show');
+  document.getElementById('lobbyConsent').onchange = event => { document.getElementById('lobbyCameraBtn').disabled = !event.target.checked; };
+}
+async function enableLobbyCamera() {
+  const status=document.getElementById('lobbyStatus'), button=document.getElementById('lobbyCameraBtn');
+  button.disabled=true; status.textContent='Requesting camera permission and checking the live feed…';
+  try {
+    lobbyStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:20}},audio:false});
+    const video=document.getElementById('lobbyVideo'); video.srcObject=lobbyStream; await video.play();
+    if (!video.videoWidth || !video.videoHeight) throw new Error('The camera did not provide a video frame.');
+    lobbyReady=true; status.textContent=`Camera working (${video.videoWidth} × ${video.videoHeight}). Capture your check-in photo to continue.`;
+    document.getElementById('lobbyContinueBtn').disabled=false; button.textContent='Camera ready';
+  } catch (error) {
+    lobbyReady=false; status.textContent='Camera is blocked or unavailable. Allow camera access in Windows Settings, close other camera apps, then retry.';
+    button.disabled=false; button.textContent='Retry camera';
+  }
+}
+async function saveLobbyCheckin() {
+  if (!lobbyReady) return;
+  const button=document.getElementById('lobbyContinueBtn'), status=document.getElementById('lobbyStatus'), video=document.getElementById('lobbyVideo');
+  button.disabled=true; status.textContent='Saving your lobby check-in…';
+  try {
+    const scale=Math.min(1,640/video.videoWidth,480/video.videoHeight), canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(video.videoWidth*scale)); canvas.height=Math.max(1,Math.round(video.videoHeight*scale)); canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+    const student=await window.examAPI.getSession('student'), schedule=await window.examAPI.getSession('schedule');
+    const result=await window.examAPI.saveExamCheckin({studentId:student?.rollNumber,examId:schedule?.id,photo:canvas.toDataURL('image/jpeg',0.65),capturedAt:new Date().toISOString(),instructionsAccepted:true,camera:{permission:'granted',width:canvas.width,height:canvas.height}});
+    if (!result?.success) throw new Error(result?.message||'The check-in was not saved.');
+    lobbyStream?.getTracks().forEach(track=>track.stop()); lobbyStream=null; status.textContent='Camera check-in saved. Preparing your exam…';
+    continueAfterLobby();
+  } catch (error) { status.textContent=error.message||'Unable to save the check-in. Check the server connection and try again.'; button.disabled=false; }
+}
+function continueAfterLobby() {
+  const schedulePromise=window.examAPI.getSession('schedule');
+  schedulePromise.then(schedule=>{
+    if (schedule?.startTime && new Date(schedule.startTime).getTime()>Date.now()+2000) {
+      examStartTime=new Date(schedule.startTime); document.getElementById('lobbyTimer').style.display='block'; startWaitCountdown();
+    } else showReady();
+  });
+}
+
+function startWaitCountdown() {
+  tick(); countdownInterval = setInterval(tick, 1000);
+}
+function tick() {
+  const diff = examStartTime.getTime() - Date.now();
+  if (diff <= 0) { clearInterval(countdownInterval); showReady(); return; }
+  const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000), s = Math.floor((diff%60000)/1000);
+  const value=`${pad(h)}:${pad(m)}:${pad(s)}`; document.getElementById('scTimer').textContent = value; document.getElementById('lobbyTimer').textContent = `Exam starts in ${value}`;
+}
+function pad(n) { return String(n).padStart(2,'0'); }
+function showReady() {
+  document.getElementById('mainView').style.display = 'none';
+  document.getElementById('lobbyView').classList.remove('show');
+  document.getElementById('readyView').classList.add('show');
+}
+async function activateLockdown() {
+  document.getElementById('startNowBtn').disabled = true;
+  document.getElementById('startNowBtn').textContent = 'Initialising Lockdown...';
+  await window.examAPI.startExam();
+  const student = await window.examAPI.getSession('student');
+  const type = (student?.examType || 'MCQ').toUpperCase();
+  if (type === 'MCQ') await window.examAPI.navigate('mcq');
+  else if (type === 'CODING') await window.examAPI.navigate('coding');
+  else await window.examAPI.navigate('interview');
+}
+init();
+</script>
+</body>
+</html>
