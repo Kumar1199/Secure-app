@@ -136,6 +136,7 @@ handleIPC('save-exam-checkin', (_, payload) => apiHandler.saveExamCheckin(payloa
 handleIPC('start-exam', async () => {
   if (!examActive) { proctor = new ProctorPolicy(); lastDraft = null; submitting = null; submitted = null; evidenceReviewUntil = 0; }
   examActive = true;
+  if (mainWindow && !mainWindow.isFullScreen()) mainWindow.setFullScreen(true);
   lockdown.start(mainWindow);
   powerSaveId = powerSaveBlocker.start('prevent-display-sleep');
   return { success: true };
@@ -190,7 +191,8 @@ handleIPC('transcribe-audio', (_, p) => speechService.speechToText_whisper(p.bas
 handleIPC('navigate', async (_, page) => {
   const allowed = ['pin', 'confirmation', 'waiting', 'mcq', 'coding', 'interview', 'completed'];
   if (allowed.includes(page)) {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/pages/${page}.html`));
+    await mainWindow.loadFile(path.join(__dirname, `../renderer/pages/${page}.html`));
+    if (examActive && ['mcq', 'coding', 'interview'].includes(page)) lockdown.enforce(mainWindow);
     return { success: true };
   }
   return { success: false };

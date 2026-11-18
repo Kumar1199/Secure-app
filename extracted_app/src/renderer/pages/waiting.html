@@ -12,13 +12,20 @@
 
 .wait-card { 
   width: min(520px, 95%); 
-  padding: 48px;
+  padding: 32px 40px;
   text-align: center;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 32px;
   box-shadow: 0 25px 60px rgba(0,0,0,0.4);
 }
+
+/* The pre-exam lobby can be taller than a laptop viewport. Keep the top
+   content accessible and scroll the card rather than clipping its text. */
+.page { align-items: flex-start; overflow-y: auto; padding: 20px 0; }
+.wait-card { margin: 0 auto; max-height: calc(100vh - 40px); overflow-y: auto; }
+.wait-card::-webkit-scrollbar { width: 6px; }
+.wait-card::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
 
 .loading-visual {
   position: relative;
@@ -41,10 +48,10 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
-.subtitle { color: var(--text2); font-size: 15px; margin-bottom: 40px; }
+h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; color: var(--text); }
+.subtitle { color: #b6c0dc; font-size: 15px; margin-bottom: 24px; }
 
-.steps { list-style: none; text-align: left; margin-bottom: 40px; }
+.steps { list-style: none; text-align: left; margin-bottom: 24px; }
 .step {
   display: flex; align-items: center; gap: 16px;
   padding: 14px 0;
@@ -88,10 +95,11 @@ h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5
 .ready-view.show { display: flex; }
 .lobby-view { display:none; text-align:left; }
 .lobby-view.show { display:block; }
-.lobby-view video { display:block; width:min(360px,100%); margin:16px auto; border-radius:12px; transform:scaleX(-1); background:#000; }
-.lobby-check { display:flex; gap:10px; align-items:flex-start; margin:14px 0; font-size:13px; color:var(--text2); }
-.lobby-status { min-height:22px; text-align:center; color:var(--text2); font-size:14px; }
-.lobby-timer { display:none; text-align:center; font:700 30px var(--mono); color:var(--accent); margin-top:20px; }
+.lobby-view video { display:block; width:min(360px,100%); max-height:250px; object-fit:cover; margin:12px auto; border-radius:12px; transform:scaleX(-1); background:#000; }
+.lobby-check { display:flex; gap:10px; align-items:flex-start; margin:12px 0; font-size:13px; color:#c6d0e8; }
+.lobby-status { min-height:22px; text-align:center; color:#c6d0e8; font-size:14px; font-weight:600; }
+.lobby-timer { display:none; text-align:center; font:700 30px var(--mono); color:var(--accent); margin-top:14px; }
+.lobby-view .btn:disabled { opacity:.82; color:#eef2ff; background:linear-gradient(135deg,#3d5f9d,#59429c); }
 .success-icon {
   width: 80px; height: 80px;
   background: #22d3a0;
@@ -219,6 +227,7 @@ function setStep(idx, state) {
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
 let examStartTime = null, countdownInterval = null, lobbyStream = null, lobbyReady = false;
+let lobbyWorker = null, lobbyFrameInterval = null, lobbyFrameBusy = false, lobbyFaceCount = null, lobbyCheckedIn = false;
 
 async function init() {
   applyTheme();
@@ -270,15 +279,65 @@ async function enableLobbyCamera() {
     lobbyStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15,max:20}},audio:false});
     const video=document.getElementById('lobbyVideo'); video.srcObject=lobbyStream; await video.play();
     if (!video.videoWidth || !video.videoHeight) throw new Error('The camera did not provide a video frame.');
-    lobbyReady=true; status.textContent=`Camera working (${video.videoWidth} × ${video.videoHeight}). Capture your check-in photo to continue.`;
-    document.getElementById('lobbyContinueBtn').disabled=false; button.textContent='Camera ready';
+    lobbyReady=true; lobbyFaceCount=null; status.textContent=`Camera working (${video.videoWidth} × ${video.videoHeight}). Checking that your face is visible…`;
+    document.getElementById('lobbyContinueBtn').disabled=true; button.textContent='Camera ready';
+    startLobbyFaceCheck(video);
   } catch (error) {
     lobbyReady=false; status.textContent='Camera is blocked or unavailable. Allow camera access in Windows Settings, close other camera apps, then retry.';
     button.disabled=false; button.textContent='Retry camera';
   }
 }
+function startLobbyFaceCheck(video) {
+  stopLobbyFaceCheck();
+  lobbyWorker=new Worker('../scripts/proctor-worker.js');
+  lobbyWorker.onmessage=event=>{
+    const data=event.data||{};
+    if(data.type==='ready') {
+      lobbyFrameInterval=setInterval(()=>sampleLobbyFrame(video),650);
+      sampleLobbyFrame(video);
+      return;
+    }
+    if(data.type==='sample') {
+      lobbyFrameBusy=false; lobbyFaceCount=Number(data.faceCount||0);
+      const status=document.getElementById('lobbyStatus'), capture=document.getElementById('lobbyContinueBtn');
+      if(lobbyFaceCount===1) {
+        status.textContent=lobbyCheckedIn ? 'Check-in saved. Keep your face visible while you wait for the exam to start.' : 'Face detected. Capture your check-in photo when you are ready.';
+        if(!lobbyCheckedIn) capture.disabled=false;
+      } else {
+        capture.disabled=true;
+        status.textContent=lobbyFaceCount>1 ? 'More than one face is visible. Only the candidate must be in the camera view.' : 'No face detected. Center your face in the camera before capturing the check-in photo.';
+      }
+      return;
+    }
+    if(data.type==='error') {
+      lobbyFrameBusy=false;
+      document.getElementById('lobbyContinueBtn').disabled=true;
+      document.getElementById('lobbyStatus').textContent='Face check could not start. Keep the camera open and retry the camera check.';
+    }
+  };
+  lobbyWorker.postMessage({type:'init'});
+}
+async function sampleLobbyFrame(video) {
+  if(!lobbyWorker||lobbyFrameBusy||!lobbyStream||video.readyState<2)return;
+  lobbyFrameBusy=true;
+  try {
+    const bitmap=await createImageBitmap(video);
+    lobbyWorker.postMessage({type:'frame',bitmap,timestamp:performance.now()},[bitmap]);
+  } catch { lobbyFrameBusy=false; }
+}
+function stopLobbyFaceCheck() {
+  clearInterval(lobbyFrameInterval); lobbyFrameInterval=null; lobbyFrameBusy=false;
+  lobbyWorker?.terminate(); lobbyWorker=null;
+}
+function stopLobbyCamera() {
+  stopLobbyFaceCheck();
+  lobbyStream?.getTracks().forEach(track=>track.stop()); lobbyStream=null;
+}
 async function saveLobbyCheckin() {
-  if (!lobbyReady) return;
+  if (!lobbyReady || lobbyFaceCount!==1) {
+    document.getElementById('lobbyStatus').textContent='A clear view of exactly one face is required before taking the check-in photo.';
+    return;
+  }
   const button=document.getElementById('lobbyContinueBtn'), status=document.getElementById('lobbyStatus'), video=document.getElementById('lobbyVideo');
   button.disabled=true; status.textContent='Saving your lobby check-in…';
   try {
@@ -287,7 +346,7 @@ async function saveLobbyCheckin() {
     const student=await window.examAPI.getSession('student'), schedule=await window.examAPI.getSession('schedule');
     const result=await window.examAPI.saveExamCheckin({studentId:student?.rollNumber,examId:schedule?.id,photo:canvas.toDataURL('image/jpeg',0.65),capturedAt:new Date().toISOString(),instructionsAccepted:true,camera:{permission:'granted',width:canvas.width,height:canvas.height}});
     if (!result?.success) throw new Error(result?.message||'The check-in was not saved.');
-    lobbyStream?.getTracks().forEach(track=>track.stop()); lobbyStream=null; status.textContent='Camera check-in saved. Preparing your exam…';
+    lobbyCheckedIn=true; button.disabled=true; button.textContent='Check-in saved'; status.textContent='Check-in saved. Keep your face visible while you wait for the exam to start.';
     continueAfterLobby();
   } catch (error) { status.textContent=error.message||'Unable to save the check-in. Check the server connection and try again.'; button.disabled=false; }
 }
@@ -311,6 +370,7 @@ function tick() {
 }
 function pad(n) { return String(n).padStart(2,'0'); }
 function showReady() {
+  stopLobbyCamera();
   document.getElementById('mainView').style.display = 'none';
   document.getElementById('lobbyView').classList.remove('show');
   document.getElementById('readyView').classList.add('show');

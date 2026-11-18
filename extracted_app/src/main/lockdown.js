@@ -129,8 +129,10 @@ function stop(mainWindow) {
 function enforce(mainWindow) {
   if (isLocked) {
     mainWindow.focus();
+    mainWindow.setKiosk(true);
     mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
     mainWindow.setFullScreen(true);
+    mainWindow.setSkipTaskbar(true);
   }
 }
 

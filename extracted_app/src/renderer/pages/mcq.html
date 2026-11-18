@@ -243,6 +243,7 @@ let questions   = [];
 let answers     = [];
 let currentIdx  = 0;
 let examEndTime = null;
+let examOpenedAt = null;
 let timerInterval = null;
 let student     = null;
 let schedule    = null;
@@ -305,22 +306,22 @@ async function init() {
   document.getElementById('examTitle').textContent = `MCQ – ${student.subject || 'Examination'}`;
   document.getElementById('examMeta').textContent  = `${student.rollNumber} · ${capitalize(student.difficulty)} · ${questions.length} Questions`;
 
-  // Fix timer: use schedule endTime if valid and in the future, else use duration
+  // Scheduled exams always finish at their published end time. A late entrant only gets the remaining time.
   const duration = student.duration || 3600; // seconds, default 1hr
   if (schedule?.endTime) {
     const end = new Date(schedule.endTime);
-    // If endTime is in the past or too close, recalculate from now
-    if (end.getTime() > Date.now() + 10000) {
-      examEndTime = end;
-    } else {
-      examEndTime = new Date(Date.now() + duration * 1000);
+    if (!Number.isNaN(end.getTime()) && end.getTime() <= Date.now()) {
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;padding:32px;text-align:center;font:600 24px sans-serif;color:#ef4743;background:#0a0c12">This exam has ended. The scheduled end time has passed.</div>';
+      return;
     }
+    examEndTime = Number.isNaN(end.getTime()) ? new Date(Date.now() + duration * 1000) : end;
   } else {
     examEndTime = new Date(Date.now() + duration * 1000);
   }
 
   buildGrid();
   renderQuestion(0);
+  examOpenedAt = Date.now();
   await ExamProctor.start({ type: 'mcq', onAutoSubmit: () => clearInterval(timerInterval), getPayload: () => ({ studentId: student.rollNumber, examId: schedule?.id, answers: [...answers], questions, timeTaken: -1 }) });
   startTimer();
 }
@@ -463,7 +464,7 @@ async function doSubmit() {
   clearInterval(timerInterval);
 
   const pin     = await window.examAPI.getSession('pin');
-  const timeTaken = Math.round((Date.now() - (examEndTime.getTime() - 3600000)) / 1000);
+  const timeTaken = Math.round((Date.now() - (examOpenedAt || Date.now())) / 1000);
 
   const res = await window.examAPI.submitMCQ({
     studentId: student.rollNumber,

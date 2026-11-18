@@ -43,11 +43,13 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
   border:1px solid var(--brd);border-radius:8px;height:34px;padding:0 6px;background:var(--surf2);}
 .prob-nav-lbl{font-size:14px;font-weight:700;padding:0 12px;cursor:pointer;
   display:flex;align-items:center;gap:6px;color:var(--tx);}
+.question-status{font:600 12px var(--mono);color:var(--tx2);white-space:nowrap;padding:0 8px;}
 .prob-nav-lbl:hover{color:var(--acc);}
 .nav-vd{width:1px;height:18px;background:var(--brd);}
 .arr-btn{background:none;border:none;color:var(--tx2);font-size:16px;cursor:pointer;
   padding:5px 8px;border-radius:6px;transition:all .15s;}
 .arr-btn:hover{color:var(--tx);background:var(--surf);}
+.arr-btn:disabled{opacity:.38;cursor:not-allowed;background:transparent;color:var(--tx2);}
 .run-btn{height:40px;padding:0 18px;background:var(--run-bg);border:1.5px solid var(--accent);
   border-radius:10px;color:var(--accent);font-family:var(--font);font-size:14px;font-weight:700;
   cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;}
@@ -77,7 +79,7 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
 .tt-track.on .tt-knob{transform:translateX(13px);}
 
 /* ── WORKSPACE ──────────────────────────────────────────────── */
-.ws{display:flex;height:calc(100vh - 44px);overflow:hidden;}
+.ws{display:flex;height:calc(100vh - 56px);overflow:hidden;}
 
 /* ── LEFT PANEL ─────────────────────────────────────────────── */
 .lp{width:420px;min-width:250px;max-width:60%;display:flex;flex-direction:column;
@@ -279,6 +281,13 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
   border-radius:8px;padding:10px 32px;font-size:14px;font-weight:600;
   cursor:pointer;font-family:var(--font);}
 .ov-fin-btn:hover{background:var(--sub-hover);}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0;}
+.review-card{border:1px solid var(--brd);border-radius:12px;background:var(--surf2);padding:14px;text-align:left;}
+.review-card strong{display:block;font:800 26px var(--mono);color:var(--tx);margin-top:4px;}
+.review-card span{font-size:12px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;}
+.review-actions{display:flex;gap:12px;justify-content:flex-end;margin-top:18px;}
+.review-cancel{background:transparent;border:1px solid var(--brd2);border-radius:8px;padding:10px 18px;color:var(--tx);font:600 14px var(--font);cursor:pointer;}
+.review-cancel:hover{border-color:var(--tx2);}
 </style>
 </head>
 <body oncontextmenu="return false">
@@ -287,7 +296,7 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
 <div class="tnav">
   <div class="tnav-l">
     <div class="logo-box">🛡</div>
-    <div class="prob-nav"><select id="problemSelect" aria-label="Coding problem" onchange="switchProblem(Number(this.value))" style="max-width:220px;background:var(--surf);color:var(--tx);padding:6px;border:1px solid var(--brd)"></select><select id="problemSelect" aria-label="Coding problem" onchange="switchProblem(Number(this.value))" style="max-width:220px;background:var(--surf);color:var(--tx);padding:6px;border:1px solid var(--brd)"></select>
+    <div class="prob-nav"><select id="problemSelect" aria-label="Coding problem" onchange="switchProblem(Number(this.value))" style="max-width:220px;background:var(--surf);color:var(--tx);padding:6px;border:1px solid var(--brd);border-radius:6px"></select>
       <span class="prob-nav-lbl">📋 Problem</span>
       <div class="nav-vd"></div>
       <button class="arr-btn" disabled style="opacity:0.5;cursor:not-allowed">‹</button>
@@ -438,6 +447,23 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
   </div>
 </div>
 
+<div class="ov" id="reviewOv" role="dialog" aria-modal="true" aria-labelledby="reviewTitle">
+  <div class="ovm" style="text-align:left;max-width:520px">
+    <div style="font-size:34px;margin-bottom:12px">Review</div>
+    <h2 id="reviewTitle">Review before submitting</h2>
+    <p>Check your progress before your final submission. You cannot edit answers after submitting.</p>
+    <div class="review-grid">
+      <div class="review-card"><span>Answered</span><strong id="reviewAnswered">0</strong></div>
+      <div class="review-card"><span>Not answered</span><strong id="reviewUnanswered">0</strong></div>
+    </div>
+    <p id="reviewDetail" style="margin:0;color:var(--tx2)"></p>
+    <div class="review-actions">
+      <button class="review-cancel" onclick="closeReview()">Cancel</button>
+      <button class="ov-fin-btn" onclick="confirmSubmission()">Submit exam</button>
+    </div>
+  </div>
+</div>
+
 <script src="../scripts/exam-proctor.js"></script>
 <script>
 // ── Theme ─────────────────────────────────────────────────────
@@ -472,7 +498,7 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 // ── State ─────────────────────────────────────────────────────
 let problems=[],problemIndex=0,problemDrafts={},uploadedBank=false,qDataRevision=null;
 let problem=null,student=null,schedule=null,examEnd=null,timerInt=null;
-let fontSize=13,curCase=0,tcResults=[],customCases=[];
+let fontSize=13,curCase=0,tcResults=[],customCases=[],compilerRevision=0;
 
 const STARTERS={
   cpp:'#include <bits/stdc++.h>\nusing namespace std;\n\nclass Solution {\npublic:\n    \n};\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    \n    return 0;\n}',
@@ -546,7 +572,11 @@ async function init(){
   }
 
   problems = qData?.problems?.length ? qData.problems : [problem];
+  problemIndex = 0;
+  problem = problems[problemIndex];
   document.getElementById('problemSelect').innerHTML=problems.map((p,i)=>`<option value="${i}">${i+1}. ${esc(p.title)}</option>`).join('');
+  configureQuestionNavigation();
+  wireEditorSecurity();
   if(uploadedBank && qData.languages?.length){
     Array.from(document.getElementById('langSel').options).forEach(o=>o.disabled=!qData.languages.includes(o.value));
     document.getElementById('langSel').value=qData.languages[0];
@@ -555,12 +585,14 @@ async function init(){
   const duration = (student && student.duration) ? student.duration : 3600;
   if(schedule && schedule.endTime){
     const end = new Date(schedule.endTime);
-    examEnd = end.getTime() > Date.now() + 10000 ? end : new Date(Date.now() + duration * 1000);
+    // The scheduled finish time is fixed. Late entrants receive only the
+    // remaining time, never a fresh full-duration attempt.
+    examEnd = !Number.isNaN(end.getTime()) ? end : new Date(Date.now() + duration * 1000);
   } else {
     examEnd = new Date(Date.now() + duration * 1000);
   }
 
-  renderProb();buildCaseTabs();setStarter();initDrags();
+  renderProb();buildCaseTabs();setStarter();updateQuestionNavigation();initDrags();
   await ExamProctor.start({ type: 'coding', onAutoSubmit: () => clearInterval(timerInt), getPayload: codingPayload });
   startTimer();
 }
@@ -574,12 +606,66 @@ function codingPayload(){
   return {studentId:student.rollNumber,examId:schedule?.id,questionRevision:qDataRevision,code:document.getElementById('cta').value,language:document.getElementById('langSel').value,...(uploadedBank?{solutions:problems.map((p,i)=>problemDrafts[p.id||String(i)]||{problemId:p.id||String(i),code:'',language:document.getElementById('langSel').value})}:{testCases:problem.testCases||[]})};
 }
 function switchProblem(index){
-  saveProblemDraft();problemIndex=index;problem=problems[index];
+  if(!Number.isInteger(index)||index<0||index>=problems.length)return;
+  saveProblemDraft();
+  problemIndex=index;
+  problem=problems[index];
+  // Synchronise the top bar first, so navigation remains accurate even while
+  // the editor and compiler panels are being rebuilt.
+  updateQuestionNavigation();
   const draft=problemDrafts[problem.id||String(index)];
   if(draft)document.getElementById('langSel').value=draft.language;
-  renderProb();buildCaseTabs();setStarter();
+  curCase=0;
+  tcResults=[];
+  customCases=[];
+  renderProb();
+  buildCaseTabs();
   if(draft){document.getElementById('cta').value=draft.code;updateLines();}
-  tcResults=[];curCase=0;clrConsole();
+  else setStarter();
+  refreshCompilerPanel();
+}
+function configureQuestionNavigation(){
+  const buttons=document.querySelectorAll('.prob-nav .arr-btn');
+  if(buttons.length<2)return;
+  buttons.forEach(button=>button.removeAttribute('style'));
+  const selector=document.getElementById('problemSelect');
+  buttons[0].id='prevQuestionBtn';buttons[0].textContent='Previous';buttons[0].title='Previous question';buttons[0].onclick=null;buttons[0].addEventListener('click',goPreviousQuestion);
+  buttons[1].id='nextQuestionBtn';buttons[1].textContent='Next';buttons[1].title='Next question';buttons[1].onclick=null;buttons[1].addEventListener('click',goNextQuestion);
+  selector.onchange=null;selector.addEventListener('change',event=>switchProblem(Number(event.target.value)));
+  const divider=document.querySelector('.prob-nav .nav-vd');
+  if(divider&&!document.getElementById('questionStatus')){
+    const status=document.createElement('span');status.id='questionStatus';status.className='question-status';divider.after(status);
+  }
+}
+function updateQuestionNavigation(){
+  const previous=document.getElementById('prevQuestionBtn'),next=document.getElementById('nextQuestionBtn'),status=document.getElementById('questionStatus');
+  if(previous)previous.disabled=problemIndex===0;
+  if(next)next.disabled=problemIndex>=problems.length-1;
+  if(status)status.textContent=`Question ${problemIndex+1} of ${problems.length}`;
+  const selector=document.getElementById('problemSelect');
+  if(selector){
+    selector.value=String(problemIndex);
+    if(Number(selector.value)!==problemIndex) selector.selectedIndex=problemIndex;
+    Array.from(selector.options).forEach((option,index)=>{ option.selected=index===problemIndex; });
+  }
+}
+function goPreviousQuestion(){ if(problemIndex>0) switchProblem(problemIndex-1); }
+function goNextQuestion(){ if(problemIndex<problems.length-1) switchProblem(problemIndex+1); }
+function refreshCompilerPanel(){
+  compilerRevision++;
+  tcResults=[];
+  clrConsole();
+  document.getElementById('rctabs').innerHTML='';
+  document.getElementById('rfields').innerHTML='';
+  document.getElementById('vmeta').textContent='';
+  document.getElementById('vchip').className='vchip run';
+  document.getElementById('vchip').textContent='Not run';
+  logC('Compiler refreshed for this question. Run your code to test it.','sys');
+  renderCaseTabs();sMTab('tc');
+}
+function wireEditorSecurity(){
+  const editor=document.getElementById('cta');
+  ['copy','cut','paste','drop'].forEach(type=>editor.addEventListener(type,event=>event.preventDefault()));
 }
 function renderProb(){
   document.getElementById('probTitle').textContent = problem.title||'Problem';
@@ -711,6 +797,10 @@ function resetCode(){setStarter();}
 function onCI(){updateLN();updCP();updateCompletions();}
 function onCK(e){
   const ta=e.target;
+  if((e.ctrlKey||e.metaKey)&&['c','v','x'].includes(e.key.toLowerCase())){
+    e.preventDefault();
+    return false;
+  }
   if(e.key==='Escape'){ closeCompletions(); return; }
   if(completionItems.length){
     if(e.key==='ArrowDown' || e.key==='ArrowUp'){
@@ -747,7 +837,7 @@ function onCK(e){
     }
     return;
   }
-  if((e.ctrlKey||e.metaKey)&&['a','z','y','c','v','x'].includes(e.key.toLowerCase())) return;
+  if((e.ctrlKey||e.metaKey)&&['a','z','y'].includes(e.key.toLowerCase())) return;
   if(e.altKey){ e.preventDefault(); return false; }
   setTimeout(() => { updCP(); updateCompletions(); }, 0);
 }
@@ -823,6 +913,7 @@ async function runCode(){
   const code=document.getElementById('cta').value.trim();if(!code)return;
   const lang=document.getElementById('langSel').value;
   const examples=problem.examples||[];
+  const runRevision=compilerRevision;
   setRunLoad(true);clrConsole();
   logC('▶ Running '+examples.length+' example(s)...','sys');
   tcResults=[];let passCount=0;
@@ -830,6 +921,7 @@ async function runCode(){
     logC('  Case '+(i+1)+'...','sys');
     try{
       const resObj = await window.examAPI.runCode({code,language:lang,stdin:examples[i].input});
+      if(runRevision!==compilerRevision)return;
       const res = resObj.data || {};
       const actual=(res.stdout||'').trim();
       const expected=(examples[i].output||'').trim();
@@ -840,10 +932,12 @@ async function runCode(){
       else{logC('  Case '+(i+1)+': ✗ '+(res.status?.description||'Wrong Answer'),'err');
         if(res.stderr)logC('  '+res.stderr.slice(0,200),'err');}
     }catch(err){
+      if(runRevision!==compilerRevision)return;
       tcResults[i]={passed:false,actual:'Error',expected:'',time:'—',status:'Error'};
       logC('  Case '+(i+1)+': Runtime Error','err');
     }
   }
+  if(runRevision!==compilerRevision)return;
   logC('\n'+passCount+'/'+examples.length+' examples passed.',passCount===examples.length?'ok':'err');
   setRunLoad(false);
   renderCaseTabs();showCase(curCase);
@@ -892,8 +986,24 @@ function setRunLoad(on){
 
 // ── Submit ────────────────────────────────────────────────────
 let codingSubmissionBusy = false;
-async function submitAllCases(expired = false){
+function getReviewSummary(){
+  saveProblemDraft();
+  const answered=problems.filter((entry,index)=>String(problemDrafts[entry.id||String(index)]?.code||'').trim().length>0).length;
+  return {answered,total:problems.length,unanswered:Math.max(0,problems.length-answered)};
+}
+function openReview(){
+  if(codingSubmissionBusy)return;
+  const summary=getReviewSummary();
+  document.getElementById('reviewAnswered').textContent=summary.answered;
+  document.getElementById('reviewUnanswered').textContent=summary.unanswered;
+  document.getElementById('reviewDetail').textContent=`${summary.answered} of ${summary.total} coding question${summary.total===1?' is':'s are'} ready for submission.`;
+  document.getElementById('reviewOv').classList.add('on');
+}
+function closeReview(){document.getElementById('reviewOv').classList.remove('on');}
+function confirmSubmission(){closeReview();submitAllCases(false,true);}
+async function submitAllCases(expired = false, confirmed = false){
   if (codingSubmissionBusy) return;
+  if (!expired && !confirmed) { openReview(); return; }
   const code=document.getElementById('cta').value.trim();if(!code && !expired && !uploadedBank)return;
   
   // Check if exam is still within time window

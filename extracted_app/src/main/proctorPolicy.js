@@ -1,6 +1,6 @@
 // Counts confirmed incidents, not individual camera frames. Kept in the main process.
 class ProctorPolicy {
-  constructor({ now = Date.now, confirmationMs = 800, repeatMs = 12000 } = {}) {
+  constructor({ now = Date.now, confirmationMs = 800, repeatMs = 7000 } = {}) {
     this.now = now; this.confirmationMs = confirmationMs; this.repeatMs = repeatMs;
     this.strikes = 0; this.events = []; this.terminated = false;
     this.candidate = null; this.lastStrike = -Infinity; this.lastSample = null;

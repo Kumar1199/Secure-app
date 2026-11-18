@@ -10,6 +10,7 @@
       const style = document.createElement('style');
       style.textContent = '#s360-camera{position:fixed;right:18px;bottom:18px;width:185px;background:#111827;color:white;border:1px solid #475569;border-radius:12px;padding:10px;z-index:900}#s360-camera video{width:100%;border-radius:8px;transform:scaleX(-1)}#s360-gate{position:fixed;inset:0;background:rgba(5,10,20,.96);color:white;z-index:100000;display:flex;align-items:center;justify-content:center;font:16px system-ui}#s360-gate[hidden],#s360-warning[hidden]{display:none}#s360-gate section{max-width:600px;padding:30px;border:1px solid #64748b;border-radius:15px}#s360-gate button{padding:12px 18px;margin-top:16px;background:#2563eb;color:white;border:0;border-radius:8px;cursor:pointer}#s360-gate button:disabled{opacity:.5}#s360-warning{position:fixed;top:12px;left:50%;transform:translateX(-50%);max-width:650px;background:#7c2d12;color:white;padding:16px 24px;border:2px solid #fb923c;border-radius:10px;z-index:99999;font:16px system-ui}#s360-badge{position:fixed;right:18px;top:65px;background:#111827;color:white;border:1px solid #64748b;padding:8px 12px;border-radius:8px;z-index:950;font:13px system-ui}';
       document.head.appendChild(style);
+      const positionStyle=document.createElement('style');positionStyle.textContent='#s360-badge{top:auto!important;bottom:230px!important;pointer-events:none}';document.head.appendChild(positionStyle);
       const evidenceStyle=document.createElement('style');evidenceStyle.textContent='#s360-gate section{max-height:90vh;overflow:auto}.s360-evidence{margin:12px auto;max-width:100%;color:#fff}.s360-evidence-image{position:relative;max-width:100%;margin:auto}.s360-evidence-image img{display:block;width:100%;height:auto;border-radius:8px}.s360-evidence-image svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.s360-evidence figcaption{font-size:12px;margin-top:7px;line-height:1.5}#s360-warning{max-height:80vh;overflow:auto}';document.head.appendChild(evidenceStyle);
       this.video = document.getElementById('camFeed');
       if (!this.video) {
@@ -18,11 +19,11 @@
         document.body.appendChild(panel); this.video = panel.querySelector('video');
       }
       this.gate = document.createElement('div'); this.gate.id = 's360-gate'; this.gate.setAttribute('role', 'dialog'); this.gate.setAttribute('aria-modal', 'true');
-      this.gate.innerHTML = '<section><h2>Camera check and exam rules</h2><p id="s360-status" role="status">Keep exactly one face visible and keep mobile phones away. Phone detection, no face, or more than one face each receive two confirmed warnings. The third incident submits your exam, then shows the incident image for two minutes before closing. A continuing incident can count again after 20 seconds.</p><p id="s360-image-disclosure">Frames are analysed on this computer. A snapshot of each confirmed phone, no-face, or multiple-face incident is shown to you and saved with your answers for administrator review (up to three images). No continuous video is recorded. Head turns, lighting and camera interruptions are logged as observations.</p><label id="s360-consent"><input type="checkbox" id="s360-consent-box"> I understand the camera, incident-image and automatic submission policy.</label><br><button id="s360-camera-button" disabled>Enable camera and check</button></section>';
+      this.gate.innerHTML = '<section><h2>Camera check and exam rules</h2><p id="s360-status" role="status">Keep exactly one face visible and keep mobile phones away. Phone detection, no face, or more than one face each receive two confirmed warnings. The third incident submits your exam, then shows the incident image for two minutes before closing.</p><p id="s360-image-disclosure">Frames are analysed on this computer. A snapshot of each confirmed phone, no-face, or multiple-face incident is shown to you and saved with your answers for administrator review (up to three images). No continuous video is recorded. Head turns, lighting and camera interruptions are logged as observations.</p><label id="s360-consent"><input type="checkbox" id="s360-consent-box"> I understand the camera, incident-image and automatic submission policy.</label><br><button id="s360-camera-button" disabled>Enable camera and check</button></section>';
       document.body.appendChild(this.gate); this.status = this.gate.querySelector('#s360-status'); this.button = this.gate.querySelector('button');
       this.gate.querySelector('input').addEventListener('change', event => { this.button.disabled = !event.target.checked; });
       this.warning = document.createElement('div'); this.warning.id = 's360-warning'; this.warning.hidden = true; this.warning.setAttribute('role','alert'); document.body.appendChild(this.warning);
-      this.badge = document.createElement('div'); this.badge.id = 's360-badge'; this.badge.textContent = 'Camera check required · 0/2 warnings'; document.body.appendChild(this.badge);
+      this.badge = document.createElement('div'); this.badge.id = 's360-badge'; this.badge.textContent = 'Warnings: 0/2'; document.body.appendChild(this.badge);
       this.keyGuard = event => { if (!this.gate.hidden && !this.gate.contains(event.target)) { event.preventDefault(); event.stopImmediatePropagation(); } };
       document.addEventListener('keydown', this.keyGuard, true);
     }
@@ -107,14 +108,10 @@
       }
       const result = await window.examAPI.proctorObserve({ ...sample, evidence, cameraState: 'live', detectorReady: true, brightness: this.brightness });
       if (result.inactive) { this.stop(); return; }
-      this.badge.textContent = `Camera active · ${Math.min(result.strikes, 2)}/2 warnings`;
+      this.badge.textContent = `Warnings: ${Math.min(result.strikes, 2)}/2`;
       if (result.action === 'submit') { this.force(result.event, result.reviewUntil); return; }
       if (result.action === 'warning') {
-        const labels={phone_detected:'A mobile phone was detected.',multiple_faces:'More than one face was detected.',no_face:'No face was detected.'};
-        const detected=(result.event?.reasons||[]).map(reason=>labels[reason]||reason).join(' ');
-        this.showWarning(`Strict warning ${result.strikes} of 2: ${detected} Correct this now. ${result.strikes === 2 ? 'The next confirmed incident submits your exam.' : ''}`);
-        this.addEvidence(this.warning,result.event,260);
-        const dismiss=document.createElement('button');dismiss.textContent='Continue exam';dismiss.onclick=()=>{this.warning.hidden=true;};this.warning.appendChild(dismiss);
+        this.showWarning(`Warning ${result.strikes} of 2`);
       }
       if (result.action === 'advisory') this.showWarning('Repeated head turns were logged for review. Keep your face towards the screen. This is not a phone/multiple-face warning.');
       if (result.cameraBlocked) { this.gate.hidden = false; this.status.textContent = 'Your face is not visible. Return to the camera to continue. The exam timer continues.'; this.button.hidden = true; }
@@ -164,6 +161,8 @@
       const footer=document.createElement('div');footer.id='s360-close-countdown';footer.setAttribute('role','timer');footer.style.cssText='position:sticky;bottom:0;margin-top:16px;padding:14px;background:#111827;border-top:1px solid #64748b;text-align:center;color:#fff';
       const value=document.createElement('strong');value.style.display='block';value.style.fontSize='20px';footer.appendChild(value);
       const note=document.createElement('small');note.textContent='Your answers are being submitted. The evidence screen stays open for two minutes, then the app closes.';footer.appendChild(note);this.gate.querySelector('section').appendChild(footer);
+      const closeNow=document.createElement('button');closeNow.type='button';closeNow.disabled=true;closeNow.textContent='Close after submission';closeNow.style.cssText='display:block;margin:14px auto 0;padding:10px 18px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer;opacity:.55';
+      closeNow.addEventListener('click',async()=>{if(closeNow.disabled||this.finished)return;this.finished=true;clearTimeout(this.retry);clearInterval(this.countdown);await window.examAPI.endExam();await window.examAPI.exitApp();});footer.appendChild(closeNow);this.closeNow=closeNow;
       const countdown=()=>{const seconds=Math.max(0,Math.ceil((this.reviewUntil-Date.now())/1000));value.textContent=seconds?`Exam will close in ${seconds} seconds`:'Saving your answers before closing…';};countdown();
       this.countdown=setInterval(countdown,1000);
       this.badge.textContent = 'Automatic submission';
@@ -179,6 +178,7 @@
     async result(result) {
       if (!this.forced || this.finished) return;
       if (result?.success) {
+        if(this.closeNow){this.closeNow.disabled=false;this.closeNow.textContent='Close exam now';this.closeNow.style.opacity='1';this.status.textContent='Your answers were submitted. You may close the exam now or review the evidence until the timer ends.';}
         if(this.reviewUntil>Date.now())await new Promise(resolve=>setTimeout(resolve,this.reviewUntil-Date.now()));
         if(this.finished)return;
         this.finished = true; clearTimeout(this.retry);

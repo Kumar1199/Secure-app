@@ -22,7 +22,7 @@ test('phone and multiple faces share a counter, with two warnings then one termi
 test('missing face receives the same confirmed warning policy as phones and multiple faces', () => {
   const {policy,observe}=fixture();let result;
   for(let time=0;time<=9000;time+=1000)result=observe(time,{faceCount:0});
-  assert.equal(result.cameraBlocked,true);assert.equal(policy.strikes,1);
+  assert.equal(result.cameraBlocked,true);assert.equal(policy.strikes,2);
   assert.equal(policy.report().events.find(event=>event.type==='confirmed_incident').reasons[0],'no_face');
   assert.equal(observe(10000).cameraBlocked,false);
 });

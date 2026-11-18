@@ -470,6 +470,10 @@ async function init() {
   document.getElementById('examBrand').textContent = `Interview – ${student.subject||'Exam'}`;
   document.getElementById('examSub').textContent   = `${student.rollNumber} · ${capitalize(student.difficulty)}`;
   examEnd = schedule?.endTime ? new Date(schedule.endTime) : new Date(Date.now()+3600000);
+  if (schedule?.endTime && !Number.isNaN(examEnd.getTime()) && examEnd.getTime() <= Date.now()) {
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;padding:32px;text-align:center;font:600 24px sans-serif;color:#ef4743;background:#0a0c12">This exam has ended. The scheduled end time has passed.</div>';
+    return;
+  }
   ttsAudio = document.getElementById('ttsAudio');
 
   // Render UI immediately (fast)
