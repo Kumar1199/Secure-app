@@ -203,6 +203,7 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
 .tcrow{height:40px;display:flex;align-items:center;justify-content:space-between;
   padding:0 16px;background:var(--surf);border-bottom:1px solid var(--brd);flex-shrink:0;}
 .tcrow-l{display:flex;}
+.tcrow-r{margin-left:auto;font:600 11px var(--mono);color:var(--tx2);padding-left:12px;white-space:nowrap;}
 .tmtab{padding:0 14px;height:40px;font-size:13px;font-weight:500;
   color:var(--tx2);background:none;border:none;cursor:pointer;
   border-bottom:2px solid transparent;display:flex;align-items:center;gap:5px;
@@ -399,6 +400,7 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--tx);
           <button class="tmtab" id="mt2" onclick="sMTab('tr')">▷ Test Result</button>
           <button class="tmtab" id="mt3" onclick="sMTab('con')">⌨ Console</button>
         </div>
+        <div class="tcrow-r" id="compilerState" role="status">Compiler ready</div>
       </div>
 
       <!-- Testcase -->
@@ -654,14 +656,22 @@ function goNextQuestion(){ if(problemIndex<problems.length-1) switchProblem(prob
 function refreshCompilerPanel(){
   compilerRevision++;
   tcResults=[];
+  // A navigation click is also a compiler reset: stop the old visual run,
+  // discard its output, and construct a fresh testcase workspace.
+  setRunLoad(false);
   clrConsole();
+  document.getElementById('cfields').innerHTML='';
   document.getElementById('rctabs').innerHTML='';
   document.getElementById('rfields').innerHTML='';
   document.getElementById('vmeta').textContent='';
   document.getElementById('vchip').className='vchip run';
   document.getElementById('vchip').textContent='Not run';
-  logC('Compiler refreshed for this question. Run your code to test it.','sys');
-  renderCaseTabs();sMTab('tc');
+  const compilerState=document.getElementById('compilerState');
+  if(compilerState) compilerState.textContent=`Compiler reset • Question ${problemIndex+1} • Ready`;
+  logC(`Compiler reset for question ${problemIndex+1}. Run your code to test it.`,'sys');
+  renderCaseTabs();
+  if(customCases.length) showCase(0);
+  sMTab('tc');
 }
 function wireEditorSecurity(){
   const editor=document.getElementById('cta');
