@@ -17,7 +17,7 @@
   "scripts": {
     "prepare:proctor": "node scripts/prepareProctorAssets.cjs",
     "prebuild": "node scripts/prepareProctorAssets.cjs",
-    "test:proctor": "node --test tests/proctorPolicy.test.cjs tests/proctorSubmission.test.cjs tests/proctorEvidence.test.cjs",
+    "test:proctor": "node --test tests/proctorPolicy.test.cjs tests/proctorSubmission.test.cjs tests/proctorEvidence.test.cjs tests/securityEventEngine.test.cjs tests/applicationIntegrityMonitor.test.cjs",
     "build": "electron-builder --win --x64",
     "start": "electron ."
   },

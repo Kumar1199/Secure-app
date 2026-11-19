@@ -84,4 +84,7 @@ async function getQuestionBank(examId) {
 function usesQuestionBank() { return activeExam?.schedule?.questionSource === 'csv'; }
 async function runUploadedCode(payload) { return request('exam/run-code', payload); }
 async function saveExamCheckin(payload) { return request('exam/checkin', payload); }
-module.exports = { getQuestionBank, usesQuestionBank, runUploadedCode, saveExamCheckin, getInviteByCode, getStudentByRoll, getExamById, getGeneratedQuestions, saveGeneratedQuestions, saveSubmission, checkExamSubmission };
+async function startExamSession(deviceId) { return request('exam/session-start', { deviceId }); }
+async function heartbeat(sessionId, deviceId) { return request('exam/heartbeat', { sessionId, deviceId }); }
+async function syncSecurityEvents(sessionId, deviceId, events) { return request('exam/events-sync', { sessionId, deviceId, events }); }
+module.exports = { getQuestionBank, usesQuestionBank, runUploadedCode, saveExamCheckin, startExamSession, heartbeat, syncSecurityEvents, getInviteByCode, getStudentByRoll, getExamById, getGeneratedQuestions, saveGeneratedQuestions, saveSubmission, checkExamSubmission };

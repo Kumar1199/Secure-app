@@ -805,7 +805,8 @@ function setStarter(){
 }
 function onLangChange(){setStarter();}
 function resetCode(){setStarter();}
-function onCI(){updateLN();updCP();updateCompletions();}
+let lastEditorLength=0,lastEditorChange=0;
+function onCI(){const now=Date.now(),length=document.getElementById('cta').value.length,delta=Math.abs(length-lastEditorLength);if(delta>=250)window.examAPI.securityActivity('CODE_LARGE_INSERT',{delta,editorLength:length,timestamp:new Date().toISOString()});if(lastEditorChange&&now-lastEditorChange<250&&delta>=80)window.examAPI.securityActivity('CODE_RAPID_CHANGE',{delta,intervalMs:now-lastEditorChange});lastEditorLength=length;lastEditorChange=now;updateLN();updCP();updateCompletions();}
 function onCK(e){
   const ta=e.target;
   if((e.ctrlKey||e.metaKey)&&['c','v','x'].includes(e.key.toLowerCase())){
@@ -922,6 +923,7 @@ function chFont(d){
 // ── Run ───────────────────────────────────────────────────────
 async function runCode(){
   const code=document.getElementById('cta').value.trim();if(!code)return;
+  window.examAPI.securityActivity('CODE_RUN',{questionId:problem?.id||null,codeLength:code.length,timestamp:new Date().toISOString()});
   const lang=document.getElementById('langSel').value;
   const examples=problem.examples||[];
   const runRevision=compilerRevision;

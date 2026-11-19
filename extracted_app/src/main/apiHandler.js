@@ -349,6 +349,19 @@ async function saveExamCheckin(payload) {
   catch (error) { return createResponse(false, null, 'Lobby check-in was not saved: ' + error.message); }
 }
 
+async function startExamSession(deviceId) {
+  try { return createResponse(true, await store.startExamSession(deviceId)); }
+  catch (error) { return createResponse(false, null, 'Unable to establish the secure exam session: ' + error.message); }
+}
+async function heartbeat(sessionId, deviceId) {
+  try { return createResponse(true, await store.heartbeat(sessionId, deviceId)); }
+  catch (error) { return createResponse(false, null, 'Heartbeat failed: ' + error.message); }
+}
+async function syncSecurityEvents(sessionId, deviceId, events) {
+  try { return createResponse(true, await store.syncSecurityEvents(sessionId, deviceId, events)); }
+  catch (error) { return createResponse(false, null, 'Security event sync failed: ' + error.message); }
+}
+
 // Forced submission saves the current answers immediately, without waiting for
 // external grading services. Evaluation can be reviewed afterwards.
 async function submitForced(type, payload) {
@@ -371,5 +384,8 @@ module.exports = {
   submitMCQ,
   checkExamAlreadySubmitted,
   saveExamCheckin,
+  startExamSession,
+  heartbeat,
+  syncSecurityEvents,
   fetchExamSchedule: async (pin) => createResponse(true, await store.getInviteByCode(pin))
 };

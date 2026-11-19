@@ -14,6 +14,7 @@ function isEditableElement(target) {
   return false;
 }
 
+function reportSecurity(type, metadata = {}) { ipcRenderer.invoke('security-activity', type, metadata).catch(() => {}); }
 function blockExamShortcuts(e) {
   const target = e.target;
   const isEditable = isEditableElement(target);
@@ -21,12 +22,14 @@ function blockExamShortcuts(e) {
   if (isEditable) {
     // Block F-keys and PrintScreen even in editable areas
     if (blockedFunctionKeys.has(e.key) || e.key === 'PrintScreen' || e.key === 'Escape') {
+      reportSecurity('PROHIBITED_SHORTCUT', { key: e.key, editable: true });
       e.preventDefault();
       e.stopImmediatePropagation();
       return false;
     }
     // Block dangerous Ctrl combos but allow copy/paste/undo/redo/select-all
     if ((e.ctrlKey || e.metaKey) && !['a', 'c', 'v', 'x', 'z', 'y'].includes(e.key.toLowerCase())) {
+      reportSecurity('PROHIBITED_SHORTCUT', { key: e.key, editable: true });
       e.preventDefault();
       e.stopImmediatePropagation();
       return false;
@@ -36,11 +39,13 @@ function blockExamShortcuts(e) {
   }
 
   if (blockedFunctionKeys.has(e.key) || e.key === 'PrintScreen' || e.key === 'ContextMenu' || e.key === 'Escape') {
+    reportSecurity('PROHIBITED_SHORTCUT', { key: e.key, editable: false });
     e.preventDefault();
     e.stopImmediatePropagation();
     return false;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) {
+    reportSecurity('PROHIBITED_SHORTCUT', { key: e.key, editable: false });
     e.preventDefault();
     e.stopImmediatePropagation();
     return false;
@@ -49,6 +54,9 @@ function blockExamShortcuts(e) {
 
 window.addEventListener('keydown', blockExamShortcuts, true);
 window.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('copy', () => reportSecurity('CLIPBOARD_ATTEMPT', { operation: 'copy' }), true);
+window.addEventListener('cut', () => reportSecurity('CLIPBOARD_ATTEMPT', { operation: 'cut' }), true);
+window.addEventListener('paste', () => reportSecurity('CLIPBOARD_ATTEMPT', { operation: 'paste' }), true);
 
 contextBridge.exposeInMainWorld('examAPI', {
   // Auth
@@ -83,8 +91,10 @@ contextBridge.exposeInMainWorld('examAPI', {
   proctorState:      () => ipcRenderer.invoke('proctor-state'),
   proctorDraft:      (type, payload) => ipcRenderer.invoke('proctor-draft', type, payload),
   proctorObserve:    sample => ipcRenderer.invoke('proctor-observe', sample),
+  proctorSimulate:   sample => ipcRenderer.invoke('proctor-simulate', sample),
   proctorFocus:      focused => ipcRenderer.invoke('proctor-focus', focused),
   proctorForceSubmit: () => ipcRenderer.invoke('proctor-force-submit'),
+  securityActivity: (type, metadata) => ipcRenderer.invoke('security-activity', type, metadata),
   onProctorSubmitted: callback => {
     const listener = (_, result) => callback(result);
     ipcRenderer.on('proctor-submitted', listener);
