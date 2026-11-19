@@ -47,7 +47,7 @@ async function getInviteByCode(code) {
   if (!result.success) return null;
   examToken = result.token;
   activeExam = result;
-  return result.invite || { id: code, rollNo: result.student?.rollNumber, examId: result.schedule?._id || result.schedule?.id, ...result.student };
+  return { ...(result.invite || { id: code, rollNo: result.student?.rollNumber, examId: result.schedule?._id || result.schedule?.id, ...result.student }), clientUpdate: result.clientUpdate };
 }
 
 async function getStudentByRoll(rollNo) {

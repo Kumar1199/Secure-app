@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../../config/config');
 const store = require('./firestoreStore');
+const appVersion = require('../../package.json').version;
+const olderThan = (current, required) => { const a=String(current).split('.').map(Number), b=String(required).split('.').map(Number); for(let i=0;i<3;i++){ if((a[i]||0)!==(b[i]||0)) return (a[i]||0)<(b[i]||0); } return false; };
 
 /**
  * Standard API Response Wrapper
@@ -109,6 +111,7 @@ async function validatePin(pin) {
   try {
     const invite = await store.getInviteByCode(pin);
     if (invite) {
+      if (invite.clientUpdate?.minimumVersion && olderThan(appVersion, invite.clientUpdate.minimumVersion)) return createResponse(false, { updateRequired:true, downloadUrl:invite.clientUpdate.downloadUrl, minimumVersion:invite.clientUpdate.minimumVersion }, `Update required. Download SecureExam ${invite.clientUpdate.minimumVersion} or later: ${invite.clientUpdate.downloadUrl}`);
       const rollNo = invite.rollNo || invite.rollnumber || invite.roll_no || '';
       const student = rollNo ? await store.getStudentByRoll(rollNo) : null;
       const exam = invite.examId ? await store.getExamById(invite.examId) : null;
