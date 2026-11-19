@@ -4,8 +4,9 @@ class ProctorPolicy {
     this.now = now; this.confirmationMs = confirmationMs; this.repeatMs = repeatMs;
     this.strikes = 0; this.events = []; this.terminated = false;
     this.candidate = null; this.lastStrike = -Infinity; this.lastSample = null;
-    this.noFaceSince = null; this.headSince = null; this.headEpisode = false;
-    this.turns = []; this.lastHeadWarning = -Infinity; this.cameraState = 'starting';
+    this.noFaceSince = null; this.headSince = null; this.eyeSince = null;
+    this.headEpisode = false; this.eyeEpisode = false; this.headActions = 0; this.eyeActions = 0;
+    this.headWarnings = 0; this.eyeWarnings = 0; this.cameraState = 'starting';
     this.lastNoFaceWarning = -Infinity; this.lastLightWarning = -Infinity;
   }
   record(type, details = {}) {
@@ -50,21 +51,27 @@ class ProctorPolicy {
     if (turned) {
       if (this.headSince === null) this.headSince = now;
       if (!this.headEpisode && now - this.headSince >= 3000) {
-        this.headEpisode = true; this.turns.push(now);
-        this.turns = this.turns.filter(time => now - time <= 60000);
+        this.headEpisode = true; this.headActions++;
         this.record('head_turn', { direction: sample.headDirection, advisory: true });
-        if (this.turns.length >= 4 && now - this.lastHeadWarning >= 60000) {
-          event = this.record('frequent_head_turns', { advisory: true, episodes: this.turns.length });
-          this.lastHeadWarning = now; if (!action) action = 'advisory';
+        if (this.headActions % 2 === 0) {
+          this.headWarnings++; event = this.record('head_rotation_warning', { advisory:true, count:this.headWarnings }); if (!action) action='advisory';
         }
       }
     } else { this.headSince = null; this.headEpisode = false; }
+    const eyesAway = sample.faceCount === 1 && ['left','right'].includes(sample.eyeDirection);
+    if (eyesAway) {
+      if (this.eyeSince === null) this.eyeSince=now;
+      if (!this.eyeEpisode && now-this.eyeSince>=1800) {
+        this.eyeEpisode=true; this.eyeActions++; this.record('eye_deviation',{direction:sample.eyeDirection,advisory:true});
+        if(this.eyeActions%2===0){this.eyeWarnings++; event=this.record('eye_rotation_warning',{advisory:true,count:this.eyeWarnings}); if(!action)action='advisory';}
+      }
+    } else { this.eyeSince=null; this.eyeEpisode=false; }
     if (Number.isFinite(sample.brightness) && sample.brightness < 18 && now - this.lastLightWarning >= 60000) {
       this.record('poor_lighting', { advisory: true }); this.lastLightWarning = now;
     }
     return { ...this.snapshot(), action, event, cameraBlocked: this.noFaceSince !== null && now - this.noFaceSince >= 8000 };
   }
-  snapshot() { return { strikes: this.strikes, warningLimit: 2, terminated: this.terminated }; }
+  snapshot() { return { strikes: this.strikes, warningLimit: 2, headWarnings:this.headWarnings, eyeWarnings:this.eyeWarnings, terminated: this.terminated }; }
   report() { return { ...this.snapshot(), policyVersion: 2, events: [...this.events], notes: 'Automated observations require human review. Up to three confirmed incident snapshots are included; no continuous video is recorded. Head movement is advisory.' }; }
 }
 module.exports = { ProctorPolicy };

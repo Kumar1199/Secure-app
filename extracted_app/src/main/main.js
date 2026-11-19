@@ -34,7 +34,7 @@ async function submitProtected(type, payload, forced = false) {
   if (forced || proctor.terminated) finalPayload.submissionReason = 'proctor_limit';
   submitting = (async () => {
     if (finalPayload.submissionReason === 'proctor_limit') preserveForcedDraft(type, finalPayload);
-    const method = type === 'mcq' ? 'submitMCQ' : type === 'coding' ? 'submitCode' : 'submitInterview';
+    const method = type === 'mcq' ? 'submitMCQ' : 'submitCode';
     const result = finalPayload.submissionReason === 'proctor_limit'
       ? await apiHandler.submitForced(type, finalPayload) : await apiHandler[method](finalPayload);
     if (result?.success) { submitted = result; try { fs.unlinkSync(pendingFile()); } catch {} }
@@ -159,7 +159,7 @@ handleIPC('exit-app', async () => {
 
 handleIPC('proctor-state', () => proctor.report());
 handleIPC('proctor-draft', (_, type, payload) => {
-  if (!examActive || !['mcq','coding','interview'].includes(type)) return { success: false };
+  if (!examActive || !['mcq','coding'].includes(type)) return { success: false };
   if (!proctor.terminated) lastDraft = { type, payload };
   return { success: true };
 });
@@ -182,17 +182,16 @@ handleIPC('proctor-force-submit', () => lastDraft ? submitProtected(lastDraft.ty
 handleIPC('submit-mcq', (_, p) => submitProtected('mcq', p));
 handleIPC('run-code', (_, p) => apiHandler.runCode(p));
 handleIPC('submit-code', (_, p) => submitProtected('coding', p));
-handleIPC('submit-interview', (_, p) => submitProtected('interview', p));
 handleIPC('check-exam-submission', (_, studentId, examId) => apiHandler.checkExamAlreadySubmitted(studentId, examId));
 
 handleIPC('tts-speak', (_, p) => speechService.textToSpeech_espeak(p.text, p.lang));
 handleIPC('transcribe-audio', (_, p) => speechService.speechToText_whisper(p.base64, p.mimeType));
 
 handleIPC('navigate', async (_, page) => {
-  const allowed = ['pin', 'confirmation', 'waiting', 'mcq', 'coding', 'interview', 'completed'];
+  const allowed = ['pin', 'confirmation', 'waiting', 'mcq', 'coding', 'completed'];
   if (allowed.includes(page)) {
     await mainWindow.loadFile(path.join(__dirname, `../renderer/pages/${page}.html`));
-    if (examActive && ['mcq', 'coding', 'interview'].includes(page)) lockdown.enforce(mainWindow);
+    if (examActive && ['mcq', 'coding'].includes(page)) lockdown.enforce(mainWindow);
     return { success: true };
   }
   return { success: false };

@@ -381,9 +381,9 @@ async function activateLockdown() {
   await window.examAPI.startExam();
   const student = await window.examAPI.getSession('student');
   const type = (student?.examType || 'MCQ').toUpperCase();
-  if (type === 'MCQ') await window.examAPI.navigate('mcq');
+  if (type === 'MCQ' || type === 'MIXED') await window.examAPI.navigate('mcq');
   else if (type === 'CODING') await window.examAPI.navigate('coding');
-  else await window.examAPI.navigate('interview');
+  else await window.examAPI.navigate('mcq');
 }
 init();
 </script>

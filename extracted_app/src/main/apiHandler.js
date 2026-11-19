@@ -129,8 +129,7 @@ async function validatePin(pin) {
     // Mock
     const mockMap = {
       '123456': { name: 'Test Student', rollNo: 'CS001', examType: 'MCQ', subject: 'JS Basics' },
-      '222222': { name: 'Coder', rollNo: 'CS002', examType: 'CODING', subject: 'Algorithms' },
-      '333333': { name: 'Interviewer', rollNo: 'CS003', examType: 'INTERVIEW', subject: 'System Design' }
+      '222222': { name: 'Coder', rollNo: 'CS002', examType: 'CODING', subject: 'Algorithms' }
     };
     if (mockMap[pin]) return createResponse(true, { student: normalizeStudent(mockMap[pin], mockMap[pin].rollNo), schedule: null });
 
@@ -157,8 +156,6 @@ async function generateQuestions(examData) {
     let prompt = '';
     if (examType === 'MCQ') {
       prompt = `Generate ${questionCount || 10} MCQ for ${difficulty} ${subject} exam. Return ONLY JSON: {"questions": [{"id":1,"question":"...","options":["..."],"correct":0}]}`;
-    } else if (examType === 'INTERVIEW') {
-      prompt = `Generate ${questionCount || 5} interview questions for ${difficulty} ${subject}. Return ONLY JSON: {"questions": [{"id":1,"question":"...","expectedKeyPoints":["..."],"followUp":"..."}]}`;
     } else if (examType === 'CODING') {
       prompt = `Generate 1 coding problem for ${difficulty} ${subject}. Return ONLY JSON: {"problem": {"title":"...","description":"...","testCases":[{"input":"...","expectedOutput":"..."}]}}`;
     }
@@ -222,7 +219,7 @@ function normalizeStudent(s, rollNo, invite, exam) {
   return {
     rollNumber: rollNo || s?.rollNumber || '',
     name: s?.name || invite?.studentName || 'Student',
-    examType: /interview/i.test(invite?.examType || exam?.examType || exam?.type || s?.examType || '') ? 'INTERVIEW' : /coding/i.test(invite?.examType || exam?.examType || exam?.type || s?.examType || '') ? 'CODING' : 'MCQ',
+    examType: /mixed/i.test(invite?.examType || exam?.examType || exam?.type || s?.examType || '') ? 'MIXED' : /coding/i.test(invite?.examType || exam?.examType || exam?.type || s?.examType || '') ? 'CODING' : 'MCQ',
     difficulty: invite?.difficulty || exam?.difficulty || 'medium',
     subject: invite?.subject || exam?.title || 'General'
   };

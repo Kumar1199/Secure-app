@@ -244,6 +244,7 @@ let answers     = [];
 let currentIdx  = 0;
 let examEndTime = null;
 let examOpenedAt = null;
+let isMixedExam = false;
 let timerInterval = null;
 let student     = null;
 let schedule    = null;
@@ -294,6 +295,7 @@ async function init() {
   // Handle questions: may be stored directly or nested
   if (qData) {
     questions = qData.questions || qData || [];
+    isMixedExam = String(qData.type || student?.examType || '').toUpperCase() === 'MIXED';
   }
 
   // Fallback: generate mock questions if none loaded
@@ -465,6 +467,12 @@ async function doSubmit() {
 
   const pin     = await window.examAPI.getSession('pin');
   const timeTaken = Math.round((Date.now() - (examOpenedAt || Date.now())) / 1000);
+
+  if (isMixedExam) {
+    await window.examAPI.setSession('mixedMcqAnswers', { answers:[...answers], questions, questionRevision, timeTaken });
+    await window.examAPI.navigate('coding');
+    return;
+  }
 
   const res = await window.examAPI.submitMCQ({
     studentId: student.rollNumber,

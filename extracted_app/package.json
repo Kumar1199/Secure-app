@@ -1,6 +1,6 @@
 {
   "name": "secure-exam-proctor",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Secure Proctored Exam Application",
   "author": "SecureExam Team",
   "main": "src/main/main.js",

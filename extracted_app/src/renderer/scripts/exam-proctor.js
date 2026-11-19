@@ -108,12 +108,12 @@
       }
       const result = await window.examAPI.proctorObserve({ ...sample, evidence, cameraState: 'live', detectorReady: true, brightness: this.brightness });
       if (result.inactive) { this.stop(); return; }
-      this.badge.textContent = `Warnings: ${Math.min(result.strikes, 2)}/2`;
+      this.badge.textContent = `Warnings: ${Math.min(result.strikes, 2)}/2 · Soft: head ${result.headWarnings||0}, eyes ${result.eyeWarnings||0}`;
       if (result.action === 'submit') { this.force(result.event, result.reviewUntil); return; }
       if (result.action === 'warning') {
         this.showWarning(`Warning ${result.strikes} of 2`);
       }
-      if (result.action === 'advisory') this.showWarning('Repeated head turns were logged for review. Keep your face towards the screen. This is not a phone/multiple-face warning.');
+      if (result.action === 'advisory') this.showWarning(`Soft warning: head ${result.headWarnings||0}, eyes ${result.eyeWarnings||0}. Keep your face and eyes towards the screen.`);
       if (result.cameraBlocked) { this.gate.hidden = false; this.status.textContent = 'Your face is not visible. Return to the camera to continue. The exam timer continues.'; this.button.hidden = true; }
       else this.gate.hidden = true;
       this.options.onSample?.(sample);

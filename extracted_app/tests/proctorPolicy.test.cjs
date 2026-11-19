@@ -29,7 +29,7 @@ test('missing face receives the same confirmed warning policy as phones and mult
 test('frequent sustained head-turn episodes create advisory events only', () => {
   const {policy,observe}=fixture();let time=0;
   for(let episode=0;episode<4;episode++){for(let frame=0;frame<4;frame++)observe(time+=1000,{headDirection:'left'});observe(time+=1000);}
-  assert.equal(policy.strikes,0);assert.ok(policy.events.some(e=>e.type==='frequent_head_turns'&&e.advisory));
+  assert.equal(policy.strikes,0);assert.ok(policy.events.some(e=>e.type==='head_rotation_warning'&&e.advisory));
 });
 test('camera outages reset partial confirmation', () => {
   const {policy,observe}=fixture();observe(0,{faceCount:2});observe(1000,{faceCount:2});observe(2000,{cameraState:'unavailable'});

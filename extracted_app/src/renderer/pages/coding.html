@@ -499,7 +499,7 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 
 // ── State ─────────────────────────────────────────────────────
 let problems=[],problemIndex=0,problemDrafts={},uploadedBank=false,qDataRevision=null;
-let problem=null,student=null,schedule=null,examEnd=null,timerInt=null;
+let problem=null,student=null,schedule=null,examEnd=null,timerInt=null,mixedMcqAnswers=null;
 let fontSize=13,curCase=0,tcResults=[],customCases=[],compilerRevision=0;
 
 const STARTERS={
@@ -526,6 +526,7 @@ async function init(){
   student = await window.examAPI.getSession('student');
   schedule = await window.examAPI.getSession('schedule');
   const qData = await window.examAPI.getSession('questions');
+  mixedMcqAnswers = await window.examAPI.getSession('mixedMcqAnswers');
   if(!student){ window.examAPI.navigate('pin'); return; }
   
   // Check if exam is expired or not yet started
@@ -605,7 +606,7 @@ function saveProblemDraft(){
 }
 function codingPayload(){
   saveProblemDraft();
-  return {studentId:student.rollNumber,examId:schedule?.id,questionRevision:qDataRevision,code:document.getElementById('cta').value,language:document.getElementById('langSel').value,...(uploadedBank?{solutions:problems.map((p,i)=>problemDrafts[p.id||String(i)]||{problemId:p.id||String(i),code:'',language:document.getElementById('langSel').value})}:{testCases:problem.testCases||[]})};
+  return {studentId:student.rollNumber,examId:schedule?.id,questionRevision:qDataRevision,code:document.getElementById('cta').value,language:document.getElementById('langSel').value,...(uploadedBank?{solutions:problems.map((p,i)=>problemDrafts[p.id||String(i)]||{problemId:p.id||String(i),code:'',language:document.getElementById('langSel').value})}:{testCases:problem.testCases||[]}),...(mixedMcqAnswers?{answers:mixedMcqAnswers.answers,mixedMcqTimeTaken:mixedMcqAnswers.timeTaken}:{})};
 }
 function switchProblem(index){
   if(!Number.isInteger(index)||index<0||index>=problems.length)return;
