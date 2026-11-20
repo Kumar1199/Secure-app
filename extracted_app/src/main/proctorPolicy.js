@@ -19,8 +19,8 @@ class ProctorPolicy {
     if (!live) { this.dispatch('CAMERA_DISCONNECTED', true, 1, { cameraState: sample.cameraState }); return { ...this.snapshot(), cameraBlocked: true }; }
     if (!Number.isInteger(sample.faceCount) || sample.faceCount < 0 || sample.faceCount > 10 || !Number.isFinite(sample.phoneConfidence) || sample.phoneConfidence < 0 || sample.phoneConfidence > 1) throw new Error('Invalid camera observation.');
     if (this.lastSample !== null && now - this.lastSample < 250) return this.snapshot(); this.lastSample = now;
-    const reasons = []; if (sample.faceCount === 0) reasons.push('no_face'); if (sample.faceCount >= 2) reasons.push('multiple_faces'); if (sample.phoneConfidence >= .5) reasons.push('phone_detected');
-    const majorType = sample.phoneConfidence >= .5 ? 'PHONE_DETECTED' : sample.faceCount >= 2 ? 'MULTIPLE_FACES' : sample.faceCount === 0 ? 'FACE_MISSING' : null;
+    const reasons = []; if (sample.faceCount === 0) reasons.push('no_face'); if (sample.faceCount >= 2) reasons.push('multiple_faces'); if (sample.phoneConfidence >= .32) reasons.push('phone_detected');
+    const majorType = sample.phoneConfidence >= .32 ? 'PHONE_DETECTED' : sample.faceCount >= 2 ? 'MULTIPLE_FACES' : sample.faceCount === 0 ? 'FACE_MISSING' : null;
     let result = { action: Action.IGNORE, event: null };
     for (const type of ['FACE_MISSING','MULTIPLE_FACES','PHONE_DETECTED']) {
       const active = type === majorType;
@@ -41,7 +41,7 @@ class ProctorPolicy {
     if (event?.type === 'confirmed_incident') this.legacyEvents.push(event);
     return { ...this.snapshot(), action, event, cameraBlocked: this.noFaceSince !== null && now - this.noFaceSince >= 8000 };
   }
-  snapshot() { const state = this.engine.snapshot(); return { strikes: this.strikes, warningLimit: 2, headWarnings: this.headWarnings, eyeWarnings: this.eyeWarnings, riskScore: state.riskScore, terminated: state.terminated }; }
+  snapshot() { const state = this.engine.snapshot(); return { strikes: this.strikes, warningLimit: 2, headWarnings: this.headWarnings, eyeWarnings: this.eyeWarnings, softReviewCount: Math.floor((this.headWarnings + this.eyeWarnings) / 3), riskScore: state.riskScore, terminated: state.terminated }; }
   report() { return { ...this.snapshot(), policyVersion: 3, events: this.legacyEvents, securityEvents: this.events, notes: 'Normalized automated observations require human review. No continuous video is recorded.' }; }
 }
 module.exports = { ProctorPolicy };

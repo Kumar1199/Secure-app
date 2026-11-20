@@ -6,11 +6,16 @@ function fixture() {
   const observe = (time, changes = {}) => { clock = time; return policy.observe({ cameraState: 'live', detectorReady: true, faceCount: 1, phoneConfidence: 0, headDirection: 'forward', brightness: 120, ...changes }); };
   return { policy, observe };
 }
-test('single/noisy frames and low phone confidence never count as incidents', () => {
+test('single/noisy frames and very low phone confidence never count as incidents', () => {
   const {policy,observe}=fixture();
   observe(0,{faceCount:2});observe(1000,{faceCount:2});observe(2000);
-  for(let time=3000;time<30000;time+=1000)observe(time,{phoneConfidence:0.49});
+  for(let time=3000;time<30000;time+=1000)observe(time,{phoneConfidence:0.31});
   assert.equal(policy.strikes,0);
+});
+test('a sustained partial-phone confidence is treated as a phone observation', () => {
+  const {policy,observe}=fixture(); let event;
+  for(let time=0;time<=1800;time+=450) { const result=observe(time,{phoneConfidence:0.36}); if(result.event) event=result.event; }
+  assert.equal(policy.strikes,1); assert.equal(event?.reasons?.[0],'phone_detected');
 });
 test('phone and multiple faces share a counter, with two warnings then one termination', () => {
   const {policy,observe}=fixture();let actions=[];

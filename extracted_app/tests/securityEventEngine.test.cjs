@@ -4,9 +4,9 @@ const { SecurityPolicyEngine, Action } = require('../src/main/securityEventEngin
 function fixture() { let time = 0; const engine = new SecurityPolicyEngine({ now: () => time }); return { engine, at(value, event) { time = value; return engine.ingest(event); } }; }
 test('normalizes persistent phone evidence and suppresses duplicate frames', () => {
   const f = fixture(); const event = { type: 'PHONE_DETECTED', active: true, confidence: .9, metadata: { faceCount: 1 } };
-  assert.equal(f.at(0,event).action,Action.IGNORE); assert.equal(f.at(400,event).action,Action.IGNORE);
-  const result=f.at(900,event); assert.equal(result.action,Action.WARNING); assert.equal(result.event.category,'OBJECT'); assert.equal(result.event.severity,'HIGH');
-  assert.equal(f.at(1000,event).action,Action.IGNORE);
+  assert.equal(f.at(0,event).action,Action.IGNORE); assert.equal(f.at(400,event).action,Action.IGNORE); assert.equal(f.at(900,event).action,Action.IGNORE);
+  const result=f.at(1300,event); assert.equal(result.action,Action.WARNING); assert.equal(result.event.category,'OBJECT'); assert.equal(result.event.severity,'HIGH');
+  assert.equal(f.at(1400,event).action,Action.IGNORE);
 });
 test('event-specific major policy auto-submits only after persistent grouped incidents', () => {
   const f=fixture(); let action; for (const start of [0,9000,18000]) { f.at(start,{type:'MULTIPLE_FACES',active:true,confidence:.95,metadata:{faceCount:2}}); f.at(start+450,{type:'MULTIPLE_FACES',active:true,confidence:.95,metadata:{faceCount:2}}); action=f.at(start+900,{type:'MULTIPLE_FACES',active:true,confidence:.95,metadata:{faceCount:2}}).action; }

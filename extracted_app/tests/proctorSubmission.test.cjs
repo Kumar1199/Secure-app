@@ -67,6 +67,7 @@ test('forced coding and interview submission bypass external grading and preserv
     require(name) {
       if (name === './firestoreStore') return { saveSubmission: async data => { saved.push(data); return { id: 'saved' }; } };
       if (name === '../../config/config') return {};
+      if (name === '../../package.json') return require('../package.json');
       return require(name);
     },
   });

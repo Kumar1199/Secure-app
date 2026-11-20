@@ -48,7 +48,7 @@
       this.preparing = true; this.button.disabled = true; this.status.textContent = 'Loading local detectors and requesting camera permission…';
       this.release(); this.validFrames = 0; this.lastFrame = -1;
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15, max: 20 } }, audio: false });
+        this.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15, max: 20 } }, audio: false });
         this.video.srcObject = this.stream; await this.video.play(); this.lastHealthy = Date.now();
         this.worker = new Worker('../scripts/proctor-worker.js');
         await new Promise((resolve, reject) => {
@@ -81,7 +81,8 @@
         const pixels = ctx.getImageData(0,0,64,48).data; let brightness = 0;
         for (let i = 0; i < pixels.length; i += 4) brightness += (pixels[i] + pixels[i+1] + pixels[i+2]) / 3;
         this.brightness = brightness / (64*48);
-        const scale=Math.min(1,640/this.video.videoWidth,480/this.video.videoHeight);
+        // Preserve enough detail for a phone that is only partly in frame.
+        const scale=Math.min(1,960/this.video.videoWidth,720/this.video.videoHeight);
         const frame=document.createElement('canvas');frame.width=Math.max(1,Math.round(this.video.videoWidth*scale));frame.height=Math.max(1,Math.round(this.video.videoHeight*scale));
         frame.getContext('2d').drawImage(this.video,0,0,frame.width,frame.height);
         this.frameCanvas=frame;this.frameCapturedAt=new Date().toISOString();
@@ -94,26 +95,39 @@
       const detectedFrame=this.frameCanvas,capturedAt=this.frameCapturedAt;
       this.lastHealthy = Date.now();
       if (!this.monitoring) {
-        this.validFrames = sample.faceCount === 1 && sample.phoneConfidence < 0.5 ? this.validFrames + 1 : 0;
+        this.validFrames = sample.faceCount === 1 && sample.phoneConfidence < 0.32 ? this.validFrames + 1 : 0;
         if (this.validFrames < 3) { this.status.textContent = 'Camera check: keep exactly one face in view and remove any phone.'; this.next = setTimeout(() => this.capture(),450); return; }
         this.monitoring = true; this.gate.hidden = true; this.ready?.(); this.ready = null;
       }
       const payload = await this.options.getPayload();
       await window.examAPI.proctorDraft(this.options.type, { ...payload, pin: this.pin });
       let evidence;
-      if((sample.faceCount===0 || sample.faceCount>=2 || sample.phoneConfidence>=0.5) && detectedFrame){
-        let image=detectedFrame.toDataURL('image/jpeg',0.65);
-        if(image.length>180000)image=detectedFrame.toDataURL('image/jpeg',0.4);
-        if(image.length<=180000)evidence={image,width:detectedFrame.width,height:detectedFrame.height,capturedAt,regions:sample.regions||[]};
+      if((sample.faceCount===0 || sample.faceCount>=2 || sample.phoneConfidence>=0.32) && detectedFrame){
+        // Detection uses the high-resolution frame; evidence is independently
+        // constrained to the IPC validator's 640×480 JPEG limit.
+        const scale=Math.min(1,640/detectedFrame.width,480/detectedFrame.height);
+        const evidenceCanvas=document.createElement('canvas');
+        evidenceCanvas.width=Math.max(1,Math.round(detectedFrame.width*scale));
+        evidenceCanvas.height=Math.max(1,Math.round(detectedFrame.height*scale));
+        evidenceCanvas.getContext('2d').drawImage(detectedFrame,0,0,evidenceCanvas.width,evidenceCanvas.height);
+        let image=evidenceCanvas.toDataURL('image/jpeg',0.62);
+        if(image.length>180000)image=evidenceCanvas.toDataURL('image/jpeg',0.42);
+        if(image.length<=180000)evidence={image,width:evidenceCanvas.width,height:evidenceCanvas.height,capturedAt,regions:sample.regions||[]};
       }
       const result = await window.examAPI.proctorObserve({ ...sample, evidence, cameraState: 'live', detectorReady: true, brightness: this.brightness });
       if (result.inactive) { this.stop(); return; }
-      this.badge.textContent = `Warnings: ${Math.min(result.strikes, 2)}/2 · Soft: head ${result.headWarnings||0}, eyes ${result.eyeWarnings||0}`;
+      this.badge.textContent = `Warnings: ${Math.min(result.strikes, 2)}/2 · Soft: head ${result.headWarnings||0}, eyes ${result.eyeWarnings||0} · Review ${result.softReviewCount||0}`;
+      // Immediate UI notice for one qualified phone frame. It is an alert and
+      // evidence signal, not an independent automated academic decision.
+      if (sample.phoneConfidence >= 0.32 && !result.action) this.showWarning('Camera alert: a possible mobile phone was detected. Remove it from view.');
       if (result.action === 'submit') { this.force(result.event, result.reviewUntil); return; }
       if (result.action === 'warning') {
         this.showWarning(`Warning ${result.strikes} of 2`);
       }
-      if (result.action === 'advisory') this.showWarning(`Soft warning: head ${result.headWarnings||0}, eyes ${result.eyeWarnings||0}. Keep your face and eyes towards the screen.`);
+      if (result.action === 'advisory') {
+        const gaze = result.event?.type === 'gaze_deviation';
+        this.showWarning(gaze ? `Eyes appear focused away from the screen. Please return your attention to the examination. Soft observations: ${result.headWarnings||0} head, ${result.eyeWarnings||0} eyes.` : `Unusual head rotation detected. Keep your face directed towards the screen. Soft observations: ${result.headWarnings||0} head, ${result.eyeWarnings||0} eyes.`);
+      }
       if (result.cameraBlocked) { this.gate.hidden = false; this.status.textContent = 'Your face is not visible. Return to the camera to continue. The exam timer continues.'; this.button.hidden = true; }
       else this.gate.hidden = true;
       this.options.onSample?.(sample);
