@@ -329,9 +329,15 @@ function stopLobbyFaceCheck() {
   clearInterval(lobbyFrameInterval); lobbyFrameInterval=null; lobbyFrameBusy=false;
   lobbyWorker?.terminate(); lobbyWorker=null;
 }
-function stopLobbyCamera() {
+async function stopLobbyCamera() {
   stopLobbyFaceCheck();
+  const video=document.getElementById('lobbyVideo');
+  // Explicitly detach the element before navigating. Some Windows camera
+  // drivers keep the device busy until both the track and the media element
+  // have been released.
+  if(video){ video.pause(); video.srcObject=null; }
   lobbyStream?.getTracks().forEach(track=>track.stop()); lobbyStream=null;
+  await new Promise(resolve=>setTimeout(resolve,300));
 }
 async function saveLobbyCheckin() {
   if (!lobbyReady || lobbyFaceCount!==1) {
@@ -346,7 +352,12 @@ async function saveLobbyCheckin() {
     const student=await window.examAPI.getSession('student'), schedule=await window.examAPI.getSession('schedule');
     const result=await window.examAPI.saveExamCheckin({studentId:student?.rollNumber,examId:schedule?.id,photo:canvas.toDataURL('image/jpeg',0.65),capturedAt:new Date().toISOString(),instructionsAccepted:true,camera:{permission:'granted',width:canvas.width,height:canvas.height}});
     if (!result?.success) throw new Error(result?.message||'The check-in was not saved.');
-    lobbyCheckedIn=true; button.disabled=true; button.textContent='Check-in saved'; status.textContent='Check-in saved. Keep your face visible while you wait for the exam to start.';
+    lobbyCheckedIn=true;
+    // The exam page consumes this trusted local session flag. It prevents an
+    // already-consented candidate from having to complete a second in-app
+    // camera consent screen after moving out of the lobby.
+    await window.examAPI.setSession('cameraCheckin',{verified:true,grantedAt:Date.now(),width:canvas.width,height:canvas.height});
+    button.disabled=true; button.textContent='Check-in saved'; status.textContent='Check-in saved. Keep your face visible while you wait for the exam to start.';
     continueAfterLobby();
   } catch (error) { status.textContent=error.message||'Unable to save the check-in. Check the server connection and try again.'; button.disabled=false; }
 }
@@ -369,8 +380,8 @@ function tick() {
   const value=`${pad(h)}:${pad(m)}:${pad(s)}`; document.getElementById('scTimer').textContent = value; document.getElementById('lobbyTimer').textContent = `Exam starts in ${value}`;
 }
 function pad(n) { return String(n).padStart(2,'0'); }
-function showReady() {
-  stopLobbyCamera();
+async function showReady() {
+  await stopLobbyCamera();
   document.getElementById('mainView').style.display = 'none';
   document.getElementById('lobbyView').classList.remove('show');
   document.getElementById('readyView').classList.add('show');

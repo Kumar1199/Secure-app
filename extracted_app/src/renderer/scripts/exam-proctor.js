@@ -29,6 +29,7 @@
     }
     async start() {
       this.pin = await window.examAPI.getSession('pin');
+      this.checkin = await window.examAPI.getSession('cameraCheckin');
       const state = await window.examAPI.proctorState();
       if (state.terminated) { this.force(); return; }
       this.unsubscribe = window.examAPI.onProctorSubmitted(result => this.result(result));
@@ -41,14 +42,27 @@
         const track = this.stream.getVideoTracks()[0];
         if (track?.readyState !== 'live' || track.muted || Date.now() - this.lastHealthy > 8000) this.unavailable('Camera or detector stopped. Restore the camera, then retry.');
       }, 1000);
+      // A successful lobby check-in already captured consent, verified the
+      // camera and released that stream. Do not present a second in-app
+      // confirmation while entering the exam; automatically open the one
+      // proctoring stream after the driver release window.
+      if (this.checkin?.verified) {
+        this.gate.hidden = true;
+        setTimeout(() => this.prepare(true), 350);
+      }
       return started;
     }
-    async prepare() {
+    async prepare(fromVerifiedLobby = false) {
       if (this.preparing || this.forced) return;
       this.preparing = true; this.button.disabled = true; this.status.textContent = 'Loading local detectors and requesting camera permission…';
       this.release(); this.validFrames = 0; this.lastFrame = -1;
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15, max: 20 } }, audio: false });
+        // A fresh renderer is created after lobby check-in. Keep its camera
+        // pipeline bounded so a second media session cannot exhaust GPU/RAM
+        // on lower-end examination laptops.
+        // Match the lobby constraints. Reusing the same, bounded profile
+        // avoids a costly camera-driver renegotiation after check-in.
+        this.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15, max: 20 } }, audio: false });
         this.video.srcObject = this.stream; await this.video.play(); this.lastHealthy = Date.now();
         this.worker = new Worker('../scripts/proctor-worker.js');
         await new Promise((resolve, reject) => {
@@ -67,7 +81,7 @@
         this.button.hidden = true; this.gate.querySelector('#s360-consent').hidden = true;
         this.capture();
       } catch (error) {
-        this.release(); this.gate.hidden = false; this.status.textContent = 'Camera check failed. Allow camera access in Windows Settings, close other camera apps, and retry. ' + error.message;
+        this.release(); this.gate.hidden = false; this.status.textContent = (fromVerifiedLobby ? 'The exam camera could not restart after check-in. ' : 'Camera check failed. ') + 'Allow camera access in Windows Settings, close other camera apps, and retry. ' + error.message;
         this.button.hidden = false; this.button.disabled = false; this.button.textContent = 'Retry camera check';
       } finally { this.preparing = false; }
     }
@@ -81,8 +95,10 @@
         const pixels = ctx.getImageData(0,0,64,48).data; let brightness = 0;
         for (let i = 0; i < pixels.length; i += 4) brightness += (pixels[i] + pixels[i+1] + pixels[i+2]) / 3;
         this.brightness = brightness / (64*48);
-        // Preserve enough detail for a phone that is only partly in frame.
-        const scale=Math.min(1,960/this.video.videoWidth,720/this.video.videoHeight);
+        // EfficientDet remains stable at this bounded input size. The lower
+        // phone confidence threshold still allows partly visible devices to be
+        // surfaced without allocating a large bitmap every 450ms.
+        const scale=Math.min(1,640/this.video.videoWidth,480/this.video.videoHeight);
         const frame=document.createElement('canvas');frame.width=Math.max(1,Math.round(this.video.videoWidth*scale));frame.height=Math.max(1,Math.round(this.video.videoHeight*scale));
         frame.getContext('2d').drawImage(this.video,0,0,frame.width,frame.height);
         this.frameCanvas=frame;this.frameCapturedAt=new Date().toISOString();

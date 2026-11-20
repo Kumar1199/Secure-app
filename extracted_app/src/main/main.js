@@ -140,8 +140,13 @@ function createWindow() {
   integrityMonitor.attach(mainWindow);
 
   const ses = mainWindow.webContents.session;
+  const trustedLocalRenderer = webContents => webContents === mainWindow.webContents && webContents.getURL().startsWith('file://');
+  // Both checks are required by Chromium/Electron across Windows versions:
+  // the check handler prevents a second post-check-in prompt from being
+  // rejected while the request handler resolves the actual media request.
+  ses.setPermissionCheckHandler((webContents, permission) => permission === 'media' && trustedLocalRenderer(webContents));
   ses.setPermissionRequestHandler((webContents, permission, callback) => {
-    if (permission === 'media' && webContents === mainWindow.webContents && webContents.getURL().startsWith('file://')) return callback(true);
+    if (permission === 'media' && trustedLocalRenderer(webContents)) return callback(true);
     callback(false);
   });
 
