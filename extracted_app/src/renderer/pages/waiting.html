@@ -186,7 +186,8 @@ h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5
       <h2>Pre-exam lobby</h2>
       <p class="subtitle" style="margin-bottom:16px">Complete this check before the exam can begin.</p>
       <ul class="steps" style="margin-bottom:18px"><li class="step done"><div class="step-indicator">✓</div><span>Keep exactly one face in view and remove mobile phones.</span></li><li class="step done"><div class="step-indicator">✓</div><span>Camera access is required for the entire assessment.</span></li><li class="step done"><div class="step-indicator">✓</div><span>A check-in photo and camera check record are stored for 7 days, then automatically deleted.</span></li></ul>
-      <label class="lobby-check"><input id="lobbyConsent" type="checkbox"> <span>I have read the instructions and consent to the camera check-in photo and proctoring process.</span></label>
+      <p>During the exam, a detected phone, confirmed missing or multiple faces, or any two confirmed head or eye movements count as one incident. The first two incidents give warnings. The third submits your answers. Incident snapshots are saved for review.</p>
+      <label class="lobby-check"><input id="lobbyConsent" type="checkbox"> <span>I understand these rules and consent to the check-in photo and exam proctoring.</span></label>
       <video id="lobbyVideo" autoplay muted playsinline></video>
       <p class="lobby-status" id="lobbyStatus">Accept the instructions, then enable your camera.</p>
       <button class="btn btn-primary" id="lobbyCameraBtn" onclick="enableLobbyCamera()" disabled style="width:100%;height:48px">Enable camera</button>

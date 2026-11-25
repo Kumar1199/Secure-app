@@ -3,11 +3,12 @@ const crypto = require('crypto');
 const Severity = Object.freeze({ INFO: 'INFO', LOW: 'LOW', MEDIUM: 'MEDIUM', HIGH: 'HIGH', CRITICAL: 'CRITICAL' });
 const Action = Object.freeze({ IGNORE: 'IGNORE', LOG: 'LOG', ADVISORY: 'ADVISORY', WARNING: 'WARNING', HIGH_RISK: 'HIGH_RISK', LOCK: 'LOCK', AUTO_SUBMIT: 'AUTO_SUBMIT' });
 const DEFAULT_POLICIES = Object.freeze({
-  PHONE_DETECTED: { category: 'OBJECT', severity: Severity.HIGH, confidence: .32, persistenceMs: 1000, minFrames: 4, cooldownMs: 7000, group: 'major_presence' },
-  MULTIPLE_FACES: { category: 'FACE', severity: Severity.HIGH, confidence: .8, persistenceMs: 800, minFrames: 3, cooldownMs: 7000, group: 'major_presence' },
+  PHONE_DETECTED: { category: 'OBJECT', severity: Severity.HIGH, confidence: .32, persistenceMs: 0, minFrames: 1, cooldownMs: 7000, group: 'major_presence' },
+  MULTIPLE_FACES: { category: 'FACE', severity: Severity.HIGH, confidence: .8, persistenceMs: 0, minFrames: 2, cooldownMs: 7000, group: 'major_presence' },
   FACE_MISSING: { category: 'FACE', severity: Severity.HIGH, confidence: .8, persistenceMs: 800, minFrames: 3, cooldownMs: 7000, group: 'major_presence' },
-  HEAD_ROTATION: { category: 'HEAD', severity: Severity.LOW, confidence: .7, persistenceMs: 2200, minFrames: 3, cooldownMs: 7000, action: Action.ADVISORY },
-  GAZE_DEVIATION: { category: 'GAZE', severity: Severity.LOW, confidence: .7, persistenceMs: 1400, minFrames: 3, cooldownMs: 7000, action: Action.ADVISORY },
+  HEAD_ROTATION: { category: 'HEAD', severity: Severity.LOW, confidence: .7, persistenceMs: 900, minFrames: 3, cooldownMs: 0, action: Action.ADVISORY },
+  GAZE_DEVIATION: { category: 'GAZE', severity: Severity.LOW, confidence: .7, persistenceMs: 900, minFrames: 3, cooldownMs: 0, action: Action.ADVISORY },
+  MOVEMENT_PAIR: { category: 'CAMERA', severity: Severity.MEDIUM, confidence: 1, persistenceMs: 0, minFrames: 1, cooldownMs: 0, group: 'major_presence' },
   CAMERA_DISCONNECTED: { category: 'CAMERA', severity: Severity.HIGH, confidence: 1, persistenceMs: 5000, minFrames: 1, cooldownMs: 30000, action: Action.HIGH_RISK },
   CAMERA_FROZEN: { category: 'CAMERA', severity: Severity.HIGH, confidence: 1, persistenceMs: 8000, minFrames: 1, cooldownMs: 30000, action: Action.HIGH_RISK },
   CAMERA_BLACK_FRAME: { category: 'CAMERA', severity: Severity.MEDIUM, confidence: .9, persistenceMs: 3000, minFrames: 2, cooldownMs: 30000, action: Action.WARNING },

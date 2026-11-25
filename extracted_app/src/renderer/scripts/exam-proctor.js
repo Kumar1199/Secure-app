@@ -19,7 +19,7 @@
         document.body.appendChild(panel); this.video = panel.querySelector('video');
       }
       this.gate = document.createElement('div'); this.gate.id = 's360-gate'; this.gate.setAttribute('role', 'dialog'); this.gate.setAttribute('aria-modal', 'true');
-      this.gate.innerHTML = '<section><h2>Camera check and exam rules</h2><p id="s360-status" role="status">Keep exactly one face visible and keep mobile phones away. Phone detection, no face, or more than one face each receive two confirmed warnings. The third incident submits your exam, then shows the incident image for two minutes before closing.</p><p id="s360-image-disclosure">Frames are analysed on this computer. A snapshot of each confirmed phone, no-face, or multiple-face incident is shown to you and saved with your answers for administrator review (up to three images). No continuous video is recorded. Head turns, lighting and camera interruptions are logged as observations.</p><label id="s360-consent"><input type="checkbox" id="s360-consent-box"> I understand the camera, incident-image and automatic submission policy.</label><br><button id="s360-camera-button" disabled>Enable camera and check</button></section>';
+      this.gate.innerHTML = '<section><h2>Exam camera</h2><p id="s360-status" role="status">Keep one face in view. A detected phone, confirmed missing or multiple faces, or any two confirmed head or eye movements count as one incident.</p><p id="s360-image-disclosure">The first two incidents give warnings. The third submits your answers and opens a two-minute evidence review. Incident snapshots are saved with your answers. Video is processed on this device.</p><label id="s360-consent"><input type="checkbox" id="s360-consent-box"> I understand the camera and submission rules.</label><br><button id="s360-camera-button" disabled>Enable camera and check</button></section>';
       document.body.appendChild(this.gate); this.status = this.gate.querySelector('#s360-status'); this.button = this.gate.querySelector('button');
       this.gate.querySelector('input').addEventListener('change', event => { this.button.disabled = !event.target.checked; });
       this.warning = document.createElement('div'); this.warning.id = 's360-warning'; this.warning.hidden = true; this.warning.setAttribute('role','alert'); document.body.appendChild(this.warning);
@@ -47,7 +47,9 @@
       // confirmation while entering the exam; automatically open the one
       // proctoring stream after the driver release window.
       if (this.checkin?.verified) {
-        this.gate.hidden = true;
+        this.gate.querySelector('#s360-consent').hidden = true;
+        this.button.hidden = true;
+        this.status.textContent = 'Starting your exam camera…';
         setTimeout(() => this.prepare(true), 350);
       }
       return started;
@@ -118,7 +120,8 @@
       const payload = await this.options.getPayload();
       await window.examAPI.proctorDraft(this.options.type, { ...payload, pin: this.pin });
       let evidence;
-      if((sample.faceCount===0 || sample.faceCount>=2 || sample.phoneConfidence>=0.32) && detectedFrame){
+      const turned = [sample.headDirection, sample.eyeDirection].some(direction => direction === 'left' || direction === 'right');
+      if((sample.faceCount!==1 || sample.phoneConfidence>=0.32 || turned) && detectedFrame){
         // Detection uses the high-resolution frame; evidence is independently
         // constrained to the IPC validator's 640×480 JPEG limit.
         const scale=Math.min(1,640/detectedFrame.width,480/detectedFrame.height);
@@ -132,17 +135,16 @@
       }
       const result = await window.examAPI.proctorObserve({ ...sample, evidence, cameraState: 'live', detectorReady: true, brightness: this.brightness });
       if (result.inactive) { this.stop(); return; }
-      this.badge.textContent = `Warnings: ${Math.min(result.strikes, 2)}/2 · Soft: head ${result.headWarnings||0}, eyes ${result.eyeWarnings||0} · Review ${result.softReviewCount||0}`;
-      // Immediate UI notice for one qualified phone frame. It is an alert and
-      // evidence signal, not an independent automated academic decision.
-      if (sample.phoneConfidence >= 0.32 && !result.action) this.showWarning('Camera alert: a possible mobile phone was detected. Remove it from view.');
+      if (result.success === false) throw new Error('Camera observation was not accepted.');
+      this.badge.textContent = `Warnings: ${Math.min(result.strikes, 2)}/2 · Movements: ${result.pendingMovement ? 1 : 0}/2`;
       if (result.action === 'submit') { this.force(result.event, result.reviewUntil); return; }
-      if (result.action === 'warning') {
-        this.showWarning(`Warning ${result.strikes} of 2`);
-      }
-      if (result.action === 'advisory') {
-        const gaze = result.event?.type === 'gaze_deviation';
-        this.showWarning(gaze ? `Eyes appear focused away from the screen. Please return your attention to the examination. Soft observations: ${result.headWarnings||0} head, ${result.eyeWarnings||0} eyes.` : `Unusual head rotation detected. Keep your face directed towards the screen. Soft observations: ${result.headWarnings||0} head, ${result.eyeWarnings||0} eyes.`);
+      if (result.event?.type === 'confirmed_incident') {
+        const labels = { phone_detected: 'Mobile phone detected', multiple_faces: 'Multiple faces detected', no_face: 'Face missing', movement_pair: 'Two head or eye movements detected' };
+        this.showWarning(`Warning ${result.strikes} of 2 · ${result.event.reasons.map(reason => labels[reason]).join(' / ')}`);
+      } else if (result.movementEvents?.length) {
+        this.showWarning('One movement recorded. Look toward the screen.');
+      } else if (result.action === 'advisory' || result.action === 'warning') {
+        this.showWarning('Camera visibility is limited. Check your camera and lighting.');
       }
       if (result.cameraBlocked) { this.gate.hidden = false; this.status.textContent = 'Your face is not visible. Return to the camera to continue. The exam timer continues.'; this.button.hidden = true; }
       else this.gate.hidden = true;

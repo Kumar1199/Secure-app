@@ -38,7 +38,14 @@ async function syncSecurityEvents() {
   if (syncingEvents || !secureSession?.sessionId) return;
   const queue = encryptedRead(eventQueueFile(), []); if (!Array.isArray(queue) || !queue.length) return;
   syncingEvents = true;
-  try { const result = await apiHandler.syncSecurityEvents(secureSession.sessionId, secureSession.deviceId, queue.slice(0, 100)); if (result?.success) { const terminal = new Set([...(result.data?.accepted || []), ...(result.data?.rejected || [])]); encryptedWrite(eventQueueFile(), queue.filter(item => !terminal.has(item.eventId))); } }
+  try {
+    const result = await apiHandler.syncSecurityEvents(secureSession.sessionId, secureSession.deviceId, queue.slice(0, 100));
+    if (result?.success) {
+      const terminal = new Set([...(result.data?.accepted || []), ...(result.data?.rejected || [])]);
+      const latest = encryptedRead(eventQueueFile(), []);
+      encryptedWrite(eventQueueFile(), latest.filter(item => !terminal.has(item.eventId)));
+    }
+  }
   finally { syncingEvents = false; }
 }
 async function sendHeartbeat() {
@@ -228,6 +235,7 @@ handleIPC('proctor-observe', (_, sample) => {
     }
     if (result.action === 'submit') evidenceReviewUntil = Date.now() + 120000;
   }
+  for (const movement of result.movementEvents || []) queueSecurityEvent(movement.type, movement.metadata, 'camera');
   if (result.event?.securityEvent) queueSecurityEvent(result.event.securityEvent.type, result.event.securityEvent.metadata || {}, 'camera');
   if (result.action === 'submit') result.reviewUntil = evidenceReviewUntil;
   if (result.action === 'submit' && lastDraft) {

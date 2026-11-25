@@ -1,6 +1,6 @@
 {
   "name": "secure-exam-proctor",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "Secure Proctored Exam Application",
   "author": "SecureExam Team",
   "main": "src/main/main.js",
@@ -17,7 +17,7 @@
   "scripts": {
     "prepare:proctor": "node scripts/prepareProctorAssets.cjs",
     "prebuild": "node scripts/prepareProctorAssets.cjs",
-    "test:proctor": "node --test tests/proctorPolicy.test.cjs tests/proctorSubmission.test.cjs tests/proctorEvidence.test.cjs tests/securityEventEngine.test.cjs tests/applicationIntegrityMonitor.test.cjs tests/cameraHandoff.test.cjs",
+    "test:proctor": "node --test tests/proctorPolicy.test.cjs tests/proctorSubmission.test.cjs tests/proctorEvidence.test.cjs tests/securityEventEngine.test.cjs tests/applicationIntegrityMonitor.test.cjs tests/cameraHandoff.test.cjs tests/examMapping.test.cjs",
     "build": "electron-builder --win --x64",
     "start": "electron ."
   },

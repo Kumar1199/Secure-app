@@ -8,12 +8,11 @@ self.onmessage = async ({ data }) => {
       const vision = await FilesetResolver.forVisionTasks('s360-assets://local/wasm');
       faces = await FaceLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: 's360-assets://local/face_landmarker.task', delegate: 'CPU' },
-        runningMode: 'VIDEO', numFaces: 3, minFaceDetectionConfidence: 0.6, minFacePresenceConfidence: 0.6, minTrackingConfidence: 0.5,
+        runningMode: 'VIDEO', numFaces: 3, minFaceDetectionConfidence: 0.5, minFacePresenceConfidence: 0.55, minTrackingConfidence: 0.5,
       });
       objects = await ObjectDetector.createFromOptions(vision, {
         baseOptions: { modelAssetPath: 's360-assets://local/efficientdet_lite0.tflite', delegate: 'CPU' },
-        // The policy still requires sustained observations. A lower detector
-        // threshold lets a partially visible phone reach that temporal policy.
+        // Pass candidate scores to the main process, which applies the warning threshold.
         runningMode: 'VIDEO', scoreThreshold: 0.18, categoryAllowlist: ['cell phone'], maxResults: 8,
       });
       self.postMessage({ type: 'ready' });
@@ -32,13 +31,18 @@ self.onmessage = async ({ data }) => {
         // policy, so a brief natural movement remains only an ignored sample.
         headDirection = offset < -0.16 ? 'left' : offset > 0.16 ? 'right' : 'forward';
         // Iris centres (FaceMesh refined landmarks) relative to eye corners.
-        // Gaze is advisory only: it never creates a strict proctor strike.
         const lIris=points[468], rIris=points[473], lOuter=points[33], lInner=points[133], rInner=points[362], rOuter=points[263];
         if(lIris&&rIris&&lOuter&&lInner&&rInner&&rOuter){
           const l=(lIris.x-(lOuter.x+lInner.x)/2)/Math.max(Math.abs(lOuter.x-lInner.x),.01);
           const r=(rIris.x-(rInner.x+rOuter.x)/2)/Math.max(Math.abs(rInner.x-rOuter.x),.01);
-          const gaze=(l+r)/2; eyeDirection=gaze < -.12 ? 'left' : gaze > .12 ? 'right' : 'forward';
-          gazeOffset=gaze;
+          // Discard blinks and inconsistent iris estimates before counting a gaze shift.
+          const leftOpen = Math.abs(points[159].y - points[145].y) * data.bitmap.height;
+          const rightOpen = Math.abs(points[386].y - points[374].y) * data.bitmap.height;
+          if (leftOpen > .12 * Math.abs(lOuter.x - lInner.x) * data.bitmap.width &&
+              rightOpen > .12 * Math.abs(rOuter.x - rInner.x) * data.bitmap.width && Math.abs(l-r) < .2) {
+            gazeOffset = (l + r) / 2;
+            eyeDirection = gazeOffset < -.12 ? 'left' : gazeOffset > .12 ? 'right' : 'forward';
+          }
         }
       }
       const phoneConfidence = Math.max(0, ...objectResult.detections.flatMap(detection => detection.categories.filter(category => category.categoryName === 'cell phone').map(category => category.score)));
